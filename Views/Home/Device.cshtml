@@ -106,54 +106,6 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- 실시간 차트 섹션 추가 -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5><i class="fas fa-chart-line"></i> Real-time Charts</h5>
-                        <div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="showVoltageChart" checked>
-                                <label class="form-check-label" for="showVoltageChart">Voltage</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="showCurrentChart" checked>
-                                <label class="form-check-label" for="showCurrentChart">Current</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="showPowerChart">
-                                <label class="form-check-label" for="showPowerChart">Power</label>
-                            </div>
-                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearChartData()">
-                                <i class="fas fa-trash"></i> Clear
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="voltageChartContainer" class="mb-4">
-                        <h6>Channel Voltages</h6>
-                        <div class="chart-container">
-                            <canvas id="detailVoltageChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div id="currentChartContainer" class="mb-4">
-                        <h6>Channel Currents</h6>
-                        <div class="chart-container">
-                            <canvas id="detailCurrentChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div id="powerChartContainer" class="mb-4" style="display: none;">
-                        <h6>Channel Power</h6>
-                        <div class="chart-container">
-                            <canvas id="detailPowerChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Device Info -->
@@ -322,12 +274,6 @@
     let currentPage = 1;
     let channelsPerPage = 20;
     
-    // 차트 관련 변수들
-    let detailVoltageChart, detailCurrentChart, detailPowerChart;
-    let voltageData = { labels: [], datasets: [] };
-    let currentData = { labels: [], datasets: [] };
-    let powerData = { labels: [], datasets: [] };
-    
     function updateConnectionStatus(connected, message) {
         isConnected = connected;
         const statusElement = document.getElementById('connectionStatus');
@@ -430,9 +376,6 @@
 
             // 데이터 카운트 업데이트
             forceUpdateDataCounts(deviceData);
-            
-            // 차트 업데이트 추가
-            updateDetailCharts(deviceData);
 
             console.log("✅ UI force update completed");
 
@@ -737,19 +680,6 @@
             connection.invoke("RequestLatestData", deviceId);
         }
     });
-    
-    // 차트 표시/숨김 토글
-    document.getElementById('showVoltageChart').addEventListener('change', function() {
-        document.getElementById('voltageChartContainer').style.display = this.checked ? 'block' : 'none';
-    });
-    
-    document.getElementById('showCurrentChart').addEventListener('change', function() {
-        document.getElementById('currentChartContainer').style.display = this.checked ? 'block' : 'none';
-    });
-    
-    document.getElementById('showPowerChart').addEventListener('change', function() {
-        document.getElementById('powerChartContainer').style.display = this.checked ? 'block' : 'none';
-    });
 
     document.getElementById('channelsPerPage').addEventListener('change', function() {
         channelsPerPage = this.value === 'all' ? 'all' : parseInt(this.value);
@@ -780,12 +710,6 @@
         console.log("🚀 Page loaded, initializing...");
         
         // 필수 라이브러리 확인
-        if (typeof Chart === 'undefined') {
-            console.error('❌ Chart.js is not available! Please check if the library is loaded.');
-            updateConnectionStatus(false, "Chart.js library not loaded");
-            return;
-        }
-        
         if (typeof signalR === 'undefined') {
             console.error('❌ SignalR is not available! Please check if the library is loaded.');
             updateConnectionStatus(false, "SignalR library not loaded");
@@ -793,15 +717,9 @@
         }
         
         console.log('✅ All libraries loaded successfully');
-        console.log('Chart.js version:', Chart.version);
         
         // SignalR 초기화
         initSignalR();
-        
-        // 차트 초기화 (약간의 지연을 두고)
-        setTimeout(() => {
-            initDetailCharts();
-        }, 200);
     });
 
     // 페이지 언로드 시 정리
