@@ -10,5 +10,6 @@ namespace GPIMSWebServer.Services
         List<DeviceData> GetDeviceDataHistory(string deviceId, int count = 100);
         List<string> GetActiveDevices();
         Task<bool> ValidateDeviceDataAsync(DeviceData deviceData);
+        Task BroadcastLatestDataAsync(string deviceId); // 새로 추가
     }
 }
