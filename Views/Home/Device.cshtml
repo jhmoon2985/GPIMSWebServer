@@ -24,11 +24,6 @@
             </div>
         </div>
         
-        <!-- Debug Status -->
-        <div class="alert alert-info" id="debugStatus">
-            <strong>Debug:</strong> <span id="debugText">Initializing...</span>
-        </div>
-        
         <!-- Connection Status -->
         <div class="alert alert-info d-flex align-items-center" id="connectionStatus">
             <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
@@ -38,35 +33,58 @@
 </div>
 
 <div id="deviceContent">
-    @if (Model != null)
-    {
-        <div class="row">
-            <!-- Channel Data -->
-            <div class="col-lg-8">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@Model.Channels.Count</span> channels)</h5>
+    <div class="row">
+        <!-- Channel Data -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
+                    <div>
+                        <small class="text-muted">Last update: <span id="lastUpdateTime">@(Model?.Timestamp.ToString("HH:mm:ss") ?? "--:--:--")</span></small>
+                        <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
-                            <small class="text-muted">Last update: <span id="lastUpdateTime">@Model.Timestamp.ToString("HH:mm:ss")</span></small>
-                            <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
+                            <label for="channelsPerPage" class="form-label">Channels per page:</label>
+                            <select id="channelsPerPage" class="form-select form-select-sm d-inline-block w-auto">
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="prevPage" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <span id="pageInfo" class="mx-2">Page 1 of 1</span>
+                            <button id="nextPage" class="btn btn-sm btn-outline-secondary" disabled>
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Ch#</th>
-                                        <th>Status</th>
-                                        <th>Mode</th>
-                                        <th>Voltage</th>
-                                        <th>Current</th>
-                                        <th>Power</th>
-                                        <th>Capacity</th>
-                                        <th>Temp</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="channelTableBody">
+                    
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Ch#</th>
+                                    <th>Status</th>
+                                    <th>Mode</th>
+                                    <th>Voltage</th>
+                                    <th>Current</th>
+                                    <th>Power</th>
+                                    <th>Capacity</th>
+                                    <th>Temp</th>
+                                    <th>Cycle</th>
+                                    <th>Step</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channelTableBody">
+                                @if (Model?.Channels != null)
+                                {
                                     @foreach (var channel in Model.Channels.Take(20))
                                     {
                                         <tr data-channel="@channel.ChannelNumber">
@@ -78,143 +96,221 @@
                                             <td class="data-value">@channel.Power.ToString("F2") W</td>
                                             <td class="data-value">@channel.Capacity.ToString("F2") Ah</td>
                                             <td class="data-value">@channel.ChamberTemperature.ToString("F1") °C</td>
+                                            <td class="data-value">@channel.CycleNo</td>
+                                            <td class="data-value">@channel.StepNo</td>
                                         </tr>
                                     }
-                                </tbody>
-                            </table>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 실시간 차트 섹션 추가 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-chart-line"></i> Real-time Charts</h5>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showVoltageChart" checked>
+                                <label class="form-check-label" for="showVoltageChart">Voltage</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showCurrentChart" checked>
+                                <label class="form-check-label" for="showCurrentChart">Current</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showPowerChart">
+                                <label class="form-check-label" for="showPowerChart">Power</label>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearChartData()">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
                         </div>
-                        <div id="channelCountInfo">
-                            @if (Model.Channels.Count > 20)
-                            {
-                                <p class="text-muted">Showing first 20 channels of @Model.Channels.Count total channels.</p>
-                            }
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="voltageChartContainer" class="mb-4">
+                        <h6>Channel Voltages</h6>
+                        <div class="chart-container">
+                            <canvas id="detailVoltageChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div id="currentChartContainer" class="mb-4">
+                        <h6>Channel Currents</h6>
+                        <div class="chart-container">
+                            <canvas id="detailCurrentChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div id="powerChartContainer" class="mb-4" style="display: none;">
+                        <h6>Channel Power</h6>
+                        <div class="chart-container">
+                            <canvas id="detailPowerChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Info -->
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle"></i> Device Summary</h6>
+                </div>
+                <div class="card-body" id="deviceSummary">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border-end">
+                                <div class="fs-4 fw-bold text-primary" id="activeChannelsCount">
+                                    @(Model?.Channels?.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle) ?? 0)
+                                </div>
+                                <small class="text-muted">Active Channels</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fs-4 fw-bold text-success" id="totalPower">
+                                @(Model?.Channels?.Sum(c => c.Power).ToString("F1") ?? "0.0")
+                            </div>
+                            <small class="text-muted">Total Power (W)</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="small">
+                        <div class="d-flex justify-content-between">
+                            <span>Device ID:</span>
+                            <span class="fw-bold">@(Model?.DeviceId ?? deviceId)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>CAN Data Points:</span>
+                            <span class="fw-bold" id="canDataCount">@(Model?.CANData?.Count ?? 0)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>LIN Data Points:</span>
+                            <span class="fw-bold" id="linDataCount">@(Model?.LINData?.Count ?? 0)</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Aux Sensors:</span>
+                            <span class="fw-bold" id="auxDataCount">@(Model?.AuxData?.Count ?? 0)</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Device Info -->
-            <div class="col-lg-4">
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6><i class="fas fa-info-circle"></i> Device Summary</h6>
-                    </div>
-                    <div class="card-body" id="deviceSummary">
-                        <div class="row text-center">
-                            <div class="col-6">
-                                <div class="border-end">
-                                    <div class="fs-4 fw-bold text-primary" id="activeChannelsCount">
-                                        @Model.Channels.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle)
-                                    </div>
-                                    <small class="text-muted">Active Channels</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="fs-4 fw-bold text-success" id="totalPower">
-                                    @Model.Channels.Sum(c => c.Power).ToString("F1")
-                                </div>
-                                <small class="text-muted">Total Power (W)</small>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="small">
-                            <div class="d-flex justify-content-between">
-                                <span>Device ID:</span>
-                                <span class="fw-bold">@Model.DeviceId</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>CAN Data Points:</span>
-                                <span class="fw-bold" id="canDataCount">@Model.CANData.Count</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>LIN Data Points:</span>
-                                <span class="fw-bold" id="linDataCount">@Model.LINData.Count</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Aux Sensors:</span>
-                                <span class="fw-bold" id="auxDataCount">@Model.AuxData.Count</span>
-                            </div>
-                        </div>
-                    </div>
+            <!-- CAN Data -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-network-wired"></i> CAN Data</h6>
                 </div>
-
-                <!-- Auxiliary Data -->
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
-                    </div>
-                    <div class="card-body" id="auxDataContent">
-                        @if (Model.AuxData.Any())
+                <div class="card-body" id="canDataContent" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model?.CANData?.Any() == true)
+                    {
+                        @foreach (var can in Model.CANData.Take(20))
                         {
-                            @foreach (var aux in Model.AuxData.Take(10))
-                            {
-                                <div class="mb-2">
-                                    <div class="d-flex justify-content-between">
-                                        <strong class="small">@aux.SensorName</strong>
-                                        <span class="data-value">@aux.Value.ToString("F2")</span>
-                                    </div>
-                                    <div class="small text-muted">
-                                        Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
-                                    </div>
+                            <div class="mb-2 p-2 border rounded">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong class="small">@can.Name</strong>
+                                    <span class="data-value">@can.Value.ToString("F2")</span>
                                 </div>
-                            }
+                                <div class="small text-muted">
+                                    BMS ID: @can.BmsId | Range: @can.Min.ToString("F1") - @can.Max.ToString("F1")
+                                </div>
+                            </div>
                         }
-                        else
-                        {
-                            <p class="text-muted">No auxiliary data</p>
-                        }
-                    </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No CAN data</p>
+                    }
                 </div>
+            </div>
 
-                <!-- Alarms -->
-                <div class="card">
-                    <div class="card-header">
-                        <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
-                    </div>
-                    <div class="card-body" id="alarmsContent">
-                        @if (Model.AlarmData.Any())
+            <!-- LIN Data -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-broadcast-tower"></i> LIN Data</h6>
+                </div>
+                <div class="card-body" id="linDataContent" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model?.LINData?.Any() == true)
+                    {
+                        @foreach (var lin in Model.LINData.Take(20))
                         {
-                            @foreach (var alarm in Model.AlarmData)
-                            {
-                                <div class="alert alert-sm alarm-@alarm.Severity.ToString().ToLower()" role="alert">
-                                    <strong>@alarm.Name</strong><br>
-                                    <small>@alarm.Description</small>
-                                    <div class="small text-muted">@alarm.Timestamp.ToString("HH:mm:ss")</div>
+                            <div class="mb-2 p-2 border rounded">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong class="small">@lin.Name</strong>
+                                    <span class="data-value">@lin.Value.ToString("F2")</span>
                                 </div>
-                            }
+                                <div class="small text-muted">
+                                    BMS ID: @lin.BmsId | Range: @lin.Min.ToString("F1") - @lin.Max.ToString("F1")
+                                </div>
+                            </div>
                         }
-                        else
+                    }
+                    else
+                    {
+                        <p class="text-muted">No LIN data</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Auxiliary Data -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
+                </div>
+                <div class="card-body" id="auxDataContent" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model?.AuxData?.Any() == true)
+                    {
+                        @foreach (var aux in Model.AuxData.Take(20))
                         {
-                            <p class="text-muted">No active alarms</p>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <strong class="small">@aux.SensorName</strong>
+                                    <span class="data-value">@aux.Value.ToString("F2")</span>
+                                </div>
+                                <div class="small text-muted">
+                                    Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
+                                </div>
+                            </div>
                         }
-                    </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No auxiliary data</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Alarms -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
+                </div>
+                <div class="card-body" id="alarmsContent" style="max-height: 300px; overflow-y: auto;">
+                    @if (Model?.AlarmData?.Any() == true)
+                    {
+                        @foreach (var alarm in Model.AlarmData)
+                        {
+                            <div class="alert alert-sm alarm-@alarm.Severity.ToString().ToLower()" role="alert">
+                                <strong>@alarm.Name</strong><br>
+                                <small>@alarm.Description</small>
+                                <div class="small text-muted">@alarm.Timestamp.ToString("HH:mm:ss")</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No active alarms</p>
+                    }
                 </div>
             </div>
         </div>
-    }
-    else
-    {
-        <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> No data available for device @deviceId
-        </div>
-    }
+    </div>
 </div>
-
-<style>
-@* .data-fresh {
-    animation: pulse-green 1s ease-in-out;
-}
-
-@@keyframes pulse-green {
-    0% { background-color: rgba(40, 167, 69, 0.2); }
-    100% { background-color: transparent; }
-} *@
-
-@* .updated-row {
-    background-color: rgba(40, 167, 69, 0.1);
-    transition: background-color 0.3s ease;
-} *@
-</style>
 
 @section Scripts {
 <script>
@@ -222,58 +318,16 @@
     let isConnected = false;
     let updateCount = 0;
     let connection;
+    let allChannels = [];
+    let currentPage = 1;
+    let channelsPerPage = 20;
     
-    function updateDebugStatus(message) {
-        console.log('[DEBUG]', message);
-        const debugElement = document.getElementById('debugText');
-        if (debugElement) {
-            debugElement.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
-        }
-    }
-
-    function initSignalR() {
-        updateDebugStatus('Initializing SignalR connection...');
-        
-        connection = new signalR.HubConnectionBuilder()
-            .withUrl("/deviceHub")
-            .configureLogging(signalR.LogLevel.Information)
-            .build();
-
-        connection.start().then(function () {
-            console.log("✅ SignalR Connected");
-            updateDebugStatus('SignalR connected successfully');
-            
-            return connection.invoke("JoinDeviceGroup", deviceId);
-        }).then(function() {
-            console.log("✅ Joined device group:", deviceId);
-            updateDebugStatus('Joined device group: ' + deviceId);
-            updateConnectionStatus(true, "Connected to real-time data");
-        }).catch(function (err) {
-            console.error("❌ SignalR connection failed:", err);
-            updateDebugStatus('Connection failed: ' + err.toString());
-            updateConnectionStatus(false, "Failed to connect: " + err.toString());
-        });
-
-        connection.on("ReceiveDeviceData", function (deviceData) {
-            console.log("📦 Received device data for update #" + (updateCount + 1), deviceData);
-            updateCount++;
-            updateDebugStatus(`Received update #${updateCount}`);
-            
-            // 강제로 UI 업데이트
-            forceUpdateUI(deviceData);
-        });
-
-        connection.onclose(function(error) {
-            console.log("🔴 SignalR connection closed", error);
-            updateDebugStatus('Connection lost');
-            updateConnectionStatus(false, "Connection lost. Attempting to reconnect...");
-            
-            setTimeout(function() {
-                initSignalR();
-            }, 3000);
-        });
-    }
-
+    // 차트 관련 변수들
+    let detailVoltageChart, detailCurrentChart, detailPowerChart;
+    let voltageData = { labels: [], datasets: [] };
+    let currentData = { labels: [], datasets: [] };
+    let powerData = { labels: [], datasets: [] };
+    
     function updateConnectionStatus(connected, message) {
         isConnected = connected;
         const statusElement = document.getElementById('connectionStatus');
@@ -293,6 +347,38 @@
         }
     }
 
+    function initSignalR() {
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/deviceHub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        connection.start().then(function () {
+            console.log("✅ SignalR Connected");
+            return connection.invoke("JoinDeviceGroup", deviceId);
+        }).then(function() {
+            console.log("✅ Joined device group:", deviceId);
+            updateConnectionStatus(true, "Connected to real-time data");
+        }).catch(function (err) {
+            console.error("❌ SignalR connection failed:", err);
+            updateConnectionStatus(false, "Failed to connect: " + err.toString());
+        });
+
+        connection.on("ReceiveDeviceData", function (deviceData) {
+            console.log("📦 Received device data for update #" + (updateCount + 1), deviceData);
+            updateCount++;
+            forceUpdateUI(deviceData);
+        });
+
+        connection.onclose(function(error) {
+            console.log("🔴 SignalR connection closed", error);
+            updateConnectionStatus(false, "Connection lost. Attempting to reconnect...");
+            setTimeout(function() {
+                initSignalR();
+            }, 3000);
+        });
+    }
+
     function forceUpdateUI(deviceData) {
         console.log("🔄 Force updating UI with:", deviceData);
         
@@ -301,32 +387,38 @@
             const counterElement = document.getElementById('updateCounter');
             if (counterElement) {
                 counterElement.textContent = `${updateCount} updates`;
-                //counterElement.classList.add('data-fresh');
             }
 
             // 마지막 업데이트 시간
             const lastUpdateElement = document.getElementById('lastUpdateTime');
             if (lastUpdateElement) {
                 lastUpdateElement.textContent = new Date(deviceData.timestamp).toLocaleTimeString();
-                //lastUpdateElement.classList.add('data-fresh');
             }
 
+            // 채널 데이터 업데이트
+            const channels = deviceData.channels || deviceData.Channels || [];
+            allChannels = channels;
+            
             // 채널 수 업데이트
             const channelCountElement = document.getElementById('channelCount');
             if (channelCountElement) {
-                const channels = deviceData.channels || deviceData.Channels || [];
                 channelCountElement.textContent = channels.length;
-                //channelCountElement.classList.add('data-fresh');
             }
 
-            // 테이블 강제 업데이트
-            const channels = deviceData.channels || deviceData.Channels || [];
-            if (channels.length > 0) {
-                forceUpdateChannelTable(channels);
-            }
+            // 테이블 업데이트
+            updateChannelTable();
+            updatePaginationControls();
 
             // 디바이스 요약 업데이트
             forceUpdateSummary(deviceData);
+
+            // CAN 데이터 업데이트
+            const canData = deviceData.canData || deviceData.CANData || [];
+            forceUpdateCANData(canData);
+
+            // LIN 데이터 업데이트
+            const linData = deviceData.linData || deviceData.LINData || [];
+            forceUpdateLINData(linData);
 
             // 보조 데이터 업데이트
             const auxData = deviceData.auxData || deviceData.AuxData || [];
@@ -338,13 +430,83 @@
 
             // 데이터 카운트 업데이트
             forceUpdateDataCounts(deviceData);
+            
+            // 차트 업데이트 추가
+            updateDetailCharts(deviceData);
 
             console.log("✅ UI force update completed");
 
         } catch (error) {
             console.error("❌ Error during UI update:", error);
-            updateDebugStatus('UI update error: ' + error.message);
         }
+    }
+
+    // Pagination functions
+    function updateChannelTable() {
+        const tbody = document.getElementById('channelTableBody');
+        if (!tbody || !allChannels.length) return;
+
+        let startIndex, endIndex;
+        
+        if (channelsPerPage === 'all') {
+            startIndex = 0;
+            endIndex = allChannels.length;
+        } else {
+            startIndex = (currentPage - 1) * channelsPerPage;
+            endIndex = Math.min(startIndex + channelsPerPage, allChannels.length);
+        }
+
+        const displayChannels = allChannels.slice(startIndex, endIndex);
+        let newHTML = '';
+        
+        displayChannels.forEach(function(channel) {
+            const channelNumber = channel.channelNumber || channel.ChannelNumber || 'N/A';
+            const rawStatus = channel.status !== undefined ? channel.status : (channel.Status !== undefined ? channel.Status : null);
+            const rawMode = channel.mode !== undefined ? channel.mode : (channel.Mode !== undefined ? channel.Mode : null);
+            const voltage = channel.voltage || channel.Voltage || 0;
+            const current = channel.current || channel.Current || 0;
+            const power = channel.power || channel.Power || 0;
+            const capacity = channel.capacity || channel.Capacity || 0;
+            const temperature = channel.chamberTemperature || channel.ChamberTemperature || 0;
+            const cycleNo = channel.cycleNo || channel.CycleNo || 0;
+            const stepNo = channel.stepNo || channel.StepNo || 0;
+            
+            const status = getStatusText(rawStatus);
+            const mode = getModeText(rawMode);
+            const statusClass = getStatusClass(status);
+            
+            newHTML += `
+                <tr data-channel="${channelNumber}">
+                    <td><strong>${channelNumber}</strong></td>
+                    <td><span class="badge ${statusClass}">${status}</span></td>
+                    <td><span class="badge bg-secondary">${mode}</span></td>
+                    <td class="data-value">${parseFloat(voltage).toFixed(3)} V</td>
+                    <td class="data-value">${parseFloat(current).toFixed(3)} A</td>
+                    <td class="data-value">${parseFloat(power).toFixed(2)} W</td>
+                    <td class="data-value">${parseFloat(capacity).toFixed(2)} Ah</td>
+                    <td class="data-value">${parseFloat(temperature).toFixed(1)} °C</td>
+                    <td class="data-value">${cycleNo}</td>
+                    <td class="data-value">${stepNo}</td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = newHTML;
+    }
+
+    function updatePaginationControls() {
+        if (channelsPerPage === 'all') {
+            document.getElementById('prevPage').disabled = true;
+            document.getElementById('nextPage').disabled = true;
+            document.getElementById('pageInfo').textContent = `Showing all ${allChannels.length} channels`;
+            return;
+        }
+
+        const totalPages = Math.ceil(allChannels.length / channelsPerPage);
+        
+        document.getElementById('prevPage').disabled = currentPage <= 1;
+        document.getElementById('nextPage').disabled = currentPage >= totalPages;
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
     }
 
     // Enum 변환 함수들
@@ -385,71 +547,8 @@
         return modeMap[modeValue] || `Unknown(${modeValue})`;
     }
 
-    function forceUpdateChannelTable(channels) {
-        console.log("📊 Force updating channel table with", channels.length, "channels");
-        console.log("First channel data:", channels[0]); // 디버깅용
-        
-        const tbody = document.getElementById('channelTableBody');
-        if (!tbody) {
-            console.error("❌ Channel table body not found!");
-            return;
-        }
-
-        // 완전히 새로 생성
-        const displayChannels = channels.slice(0, 20);
-        let newHTML = '';
-        
-        displayChannels.forEach(function(channel) {
-            // 안전한 속성 접근
-            const channelNumber = channel.channelNumber || channel.ChannelNumber || 'N/A';
-            const rawStatus = channel.status !== undefined ? channel.status : (channel.Status !== undefined ? channel.Status : null);
-            const rawMode = channel.mode !== undefined ? channel.mode : (channel.Mode !== undefined ? channel.Mode : null);
-            const voltage = channel.voltage || channel.Voltage || 0;
-            const current = channel.current || channel.Current || 0;
-            const power = channel.power || channel.Power || 0;
-            const capacity = channel.capacity || channel.Capacity || 0;
-            const temperature = channel.chamberTemperature || channel.ChamberTemperature || 0;
-            
-            // Enum 값을 텍스트로 변환
-            const status = getStatusText(rawStatus);
-            const mode = getModeText(rawMode);
-            
-            const statusClass = getStatusClass(status);
-            
-            console.log(`Channel ${channelNumber}: rawStatus=${rawStatus} -> status=${status}, rawMode=${rawMode} -> mode=${mode}`);
-            
-            newHTML += `
-                <tr data-channel="${channelNumber}" class="updated-row">
-                    <td><strong>${channelNumber}</strong></td>
-                    <td><span class="badge ${statusClass}">${status}</span></td>
-                    <td><span class="badge bg-secondary">${mode}</span></td>
-                    <td class="data-value">${parseFloat(voltage).toFixed(3)} V</td>
-                    <td class="data-value">${parseFloat(current).toFixed(3)} A</td>
-                    <td class="data-value">${parseFloat(power).toFixed(2)} W</td>
-                    <td class="data-value">${parseFloat(capacity).toFixed(2)} Ah</td>
-                    <td class="data-value">${parseFloat(temperature).toFixed(1)} °C</td>
-                </tr>
-            `;
-        });
-        
-        tbody.innerHTML = newHTML;
-        
-        // 채널 정보 업데이트
-        const countInfo = document.getElementById('channelCountInfo');
-        if (countInfo) {
-            if (channels.length > 20) {
-                countInfo.innerHTML = `<p class="text-muted">Showing first 20 channels of ${channels.length} total channels.</p>`;
-            } else {
-                countInfo.innerHTML = '';
-            }
-        }
-
-        console.log("✅ Channel table updated with", displayChannels.length, "rows");
-    }
-
     function getStatusClass(status) {
         if (!status || typeof status !== 'string') {
-            console.warn("Invalid status:", status);
             return 'status-unknown';
         }
         const statusLower = status.toString().toLowerCase();
@@ -461,7 +560,7 @@
 
         const channels = deviceData.channels || deviceData.Channels || [];
 
-        // 활성 채널 수 (Idle = 0이므로 0이 아닌 것들 카운트)
+        // 활성 채널 수
         const activeChannels = channels.filter(ch => {
             const rawStatus = ch.status !== undefined ? ch.status : (ch.Status !== undefined ? ch.Status : 0);
             return rawStatus !== 0; // Idle이 아닌 것들
@@ -470,7 +569,6 @@
         const activeElement = document.getElementById('activeChannelsCount');
         if (activeElement) {
             activeElement.textContent = activeChannels;
-            //activeElement.classList.add('data-fresh');
         }
 
         // 총 전력
@@ -482,8 +580,73 @@
         const powerElement = document.getElementById('totalPower');
         if (powerElement) {
             powerElement.textContent = totalPower.toFixed(1);
-            //powerElement.classList.add('data-fresh');
         }
+    }
+
+    function forceUpdateCANData(canData) {
+        const container = document.getElementById('canDataContent');
+        if (!container) return;
+
+        if (!canData || canData.length === 0) {
+            container.innerHTML = '<p class="text-muted">No CAN data</p>';
+            return;
+        }
+
+        let html = '';
+        canData.slice(0, 20).forEach(function(can) {
+            const name = can.name || can.Name || 'Unknown';
+            const value = can.value || can.Value || 0;
+            const bmsId = can.bmsId || can.BmsId || 0;
+            const min = can.min || can.Min || 0;
+            const max = can.max || can.Max || 0;
+            
+            html += `
+                <div class="mb-2 p-2 border rounded">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong class="small">${name}</strong>
+                        <span class="data-value">${parseFloat(value).toFixed(2)}</span>
+                    </div>
+                    <div class="small text-muted">
+                        BMS ID: ${bmsId} | Range: ${parseFloat(min).toFixed(1)} - ${parseFloat(max).toFixed(1)}
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+
+    function forceUpdateLINData(linData) {
+        const container = document.getElementById('linDataContent');
+        if (!container) return;
+
+        if (!linData || linData.length === 0) {
+            container.innerHTML = '<p class="text-muted">No LIN data</p>';
+            return;
+        }
+
+        let html = '';
+        linData.slice(0, 20).forEach(function(lin) {
+            const name = lin.name || lin.Name || 'Unknown';
+            const value = lin.value || lin.Value || 0;
+            const bmsId = lin.bmsId || lin.BmsId || 0;
+            const min = lin.min || lin.Min || 0;
+            const max = lin.max || lin.Max || 0;
+            
+            html += `
+                <div class="mb-2 p-2 border rounded">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong class="small">${name}</strong>
+                        <span class="data-value">${parseFloat(value).toFixed(2)}</span>
+                    </div>
+                    <div class="small text-muted">
+                        BMS ID: ${bmsId} | Range: ${parseFloat(min).toFixed(1)} - ${parseFloat(max).toFixed(1)}
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
     }
 
     function forceUpdateAuxData(auxData) {
@@ -496,14 +659,14 @@
         }
 
         let html = '';
-        auxData.slice(0, 10).forEach(function(aux) {
+        auxData.slice(0, 20).forEach(function(aux) {
             const sensorName = aux.sensorName || aux.SensorName || 'Unknown Sensor';
             const value = aux.value || aux.Value || 0;
             const safeLowerLimit = aux.safeLowerLimit || aux.SafeLowerLimit || 0;
             const safeUpperLimit = aux.safeUpperLimit || aux.SafeUpperLimit || 0;
             
             html += `
-                <div class="mb-2 updated-row">
+                <div class="mb-2">
                     <div class="d-flex justify-content-between">
                         <strong class="small">${sensorName}</strong>
                         <span class="data-value">${parseFloat(value).toFixed(2)}</span>
@@ -536,7 +699,7 @@
             
             const severityClass = `alarm-${severity.toString().toLowerCase()}`;
             html += `
-                <div class="alert alert-sm ${severityClass} updated-row" role="alert">
+                <div class="alert alert-sm ${severityClass}" role="alert">
                     <strong>${name}</strong><br>
                     <small>${description}</small>
                     <div class="small text-muted">${new Date(timestamp).toLocaleTimeString()}</div>
@@ -552,48 +715,93 @@
         if (canCount) {
             const canData = deviceData.canData || deviceData.CANData || [];
             canCount.textContent = canData.length;
-            //canCount.classList.add('data-fresh');
         }
 
         const linCount = document.getElementById('linDataCount');
         if (linCount) {
             const linData = deviceData.linData || deviceData.LINData || [];
             linCount.textContent = linData.length;
-            //linCount.classList.add('data-fresh');
         }
 
         const auxCount = document.getElementById('auxDataCount');
         if (auxCount) {
             const auxData = deviceData.auxData || deviceData.AuxData || [];
             auxCount.textContent = auxData.length;
-            //auxCount.classList.add('data-fresh');
         }
     }
 
-    // 수동 새로고침 버튼
+    // Event listeners
     document.getElementById('manualRefreshBtn').addEventListener('click', function() {
         if (isConnected && connection) {
             console.log("🔄 Manual refresh requested");
-            updateDebugStatus('Manual refresh requested');
             connection.invoke("RequestLatestData", deviceId);
-        } else {
-            console.log("⚠️ Not connected, cannot refresh");
-            updateDebugStatus('Cannot refresh - not connected');
+        }
+    });
+    
+    // 차트 표시/숨김 토글
+    document.getElementById('showVoltageChart').addEventListener('change', function() {
+        document.getElementById('voltageChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('showCurrentChart').addEventListener('change', function() {
+        document.getElementById('currentChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('showPowerChart').addEventListener('change', function() {
+        document.getElementById('powerChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+
+    document.getElementById('channelsPerPage').addEventListener('change', function() {
+        channelsPerPage = this.value === 'all' ? 'all' : parseInt(this.value);
+        currentPage = 1;
+        updateChannelTable();
+        updatePaginationControls();
+    });
+
+    document.getElementById('prevPage').addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            updateChannelTable();
+            updatePaginationControls();
         }
     });
 
-    // 애니메이션 클래스 제거
-    @* setInterval(function() {
-        document.querySelectorAll('.data-fresh, .updated-row').forEach(function(element) {
-            element.classList.remove('data-fresh', 'updated-row');
-        });
-    }, 2000); *@
+    document.getElementById('nextPage').addEventListener('click', function() {
+        const totalPages = Math.ceil(allChannels.length / channelsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            updateChannelTable();
+            updatePaginationControls();
+        }
+    });
 
     // 초기화
     document.addEventListener('DOMContentLoaded', function() {
         console.log("🚀 Page loaded, initializing...");
-        updateDebugStatus('Page loaded, starting connection...');
+        
+        // 필수 라이브러리 확인
+        if (typeof Chart === 'undefined') {
+            console.error('❌ Chart.js is not available! Please check if the library is loaded.');
+            updateConnectionStatus(false, "Chart.js library not loaded");
+            return;
+        }
+        
+        if (typeof signalR === 'undefined') {
+            console.error('❌ SignalR is not available! Please check if the library is loaded.');
+            updateConnectionStatus(false, "SignalR library not loaded");
+            return;
+        }
+        
+        console.log('✅ All libraries loaded successfully');
+        console.log('Chart.js version:', Chart.version);
+        
+        // SignalR 초기화
         initSignalR();
+        
+        // 차트 초기화 (약간의 지연을 두고)
+        setTimeout(() => {
+            initDetailCharts();
+        }, 200);
     });
 
     // 페이지 언로드 시 정리

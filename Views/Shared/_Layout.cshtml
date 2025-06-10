@@ -8,59 +8,258 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <link href="~/css/site.css" rel="stylesheet" />
     <style>
-        .status-idle { background-color: #6c757d; }
-        .status-rest { background-color: #17a2b8; }
-        .status-discharge { background-color: #dc3545; }
-        .status-charge { background-color: #28a745; }
-        .status-pause { background-color: #ffc107; }
-        .status-finish { background-color: #007bff; }
+        .status-idle { background-color: #6c757d; color: white; }
+        .status-rest { background-color: #17a2b8; color: white; }
+        .status-discharge { background-color: #dc3545; color: white; }
+        .status-charge { background-color: #28a745; color: white; }
+        .status-pause { background-color: #ffc107; color: black; }
+        .status-finish { background-color: #007bff; color: white; }
+        .status-unknown { background-color: #6c757d; color: white; }
         
         .chart-container {
             position: relative;
             height: 300px;
             margin-bottom: 20px;
+            width: 100%;
         }
         
         .device-card {
-            transition: transform 0.2s;
+            transition: transform 0.2s ease-in-out;
+            border: 1px solid #dee2e6;
         }
         
         .device-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
         .data-value {
             font-family: 'Courier New', monospace;
             font-weight: bold;
+            color: #2c3e50;
         }
         
-        .alarm-critical { border-left: 4px solid #dc3545; }
-        .alarm-error { border-left: 4px solid #fd7e14; }
-        .alarm-warning { border-left: 4px solid #ffc107; }
-        .alarm-info { border-left: 4px solid #17a2b8; }
+        .alarm-critical { 
+            border-left: 4px solid #dc3545; 
+            background-color: #f8d7da;
+        }
+        .alarm-error { 
+            border-left: 4px solid #fd7e14; 
+            background-color: #ffeaa7;
+        }
+        .alarm-warning { 
+            border-left: 4px solid #ffc107; 
+            background-color: #fff3cd;
+        }
+        .alarm-info { 
+            border-left: 4px solid #17a2b8; 
+            background-color: #d1ecf1;
+        }
+        
+        /* 스크롤바 스타일링 */
+        .card-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .card-body::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .card-body::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .card-body::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* 테이블 헤더 고정 */
+        .table-responsive {
+            border-radius: 0.375rem;
+        }
+        
+        .sticky-top {
+            position: sticky;
+            top: 0;
+            z-index: 1020;
+        }
+        
+        /* 연결 상태 애니메이션 */
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        /* Chart.js 컨테이너 스타일 */
+        canvas {
+            max-height: 400px !important;
+        }
+        
+        .view-content {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @@keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* 반응형 디자인 */
+        @@media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+            
+            .btn-group .btn {
+                font-size: 0.875rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
             <a class="navbar-brand" href="/">
                 <i class="fas fa-battery-three-quarters"></i> GPIMS Web Server
             </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/">
-                    <i class="fas fa-home"></i> Home
-                </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                    <a class="nav-link" href="/Home/Debug">
+                        <i class="fas fa-bug"></i> Debug
+                    </a>
+                    <a class="nav-link" href="#" id="connectionIndicator">
+                        <i class="fas fa-circle text-secondary"></i> Disconnected
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
 
-    <main class="container mt-4">
+    <main class="container-fluid mt-4">
         @RenderBody()
     </main>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.0/chart.min.js"></script>
+    <!-- JavaScript 라이브러리들을 올바른 순서로 로드 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    
+    <!-- 공통 JavaScript 함수들 -->
+    <script>
+        // 전역 연결 상태 관리
+        window.globalConnectionStatus = {
+            isConnected: false,
+            updateIndicator: function(connected) {
+                this.isConnected = connected;
+                const indicator = document.getElementById('connectionIndicator');
+                if (indicator) {
+                    if (connected) {
+                        indicator.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
+                    } else {
+                        indicator.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+                    }
+                }
+            }
+        };
+        
+        // Chart.js 로드 확인 함수
+        function checkChartJS() {
+            if (typeof Chart !== 'undefined') {
+                console.log('✅ Chart.js loaded successfully, version:', Chart.version);
+                return true;
+            } else {
+                console.error('❌ Chart.js not loaded!');
+                return false;
+            }
+        }
+        
+        // SignalR 로드 확인 함수
+        function checkSignalR() {
+            if (typeof signalR !== 'undefined') {
+                console.log('✅ SignalR loaded successfully');
+                return true;
+            } else {
+                console.error('❌ SignalR not loaded!');
+                return false;
+            }
+        }
+        
+        // 페이지 로드 시 라이브러리 확인
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 Checking required libraries...');
+            checkSignalR();
+            checkChartJS();
+        });
+        
+        // 공통 상태 텍스트 변환 함수들
+        window.commonFunctions = {
+            getStatusText: function(statusValue) {
+                const statusMap = {
+                    0: 'Idle',
+                    1: 'Rest', 
+                    2: 'Discharge',
+                    3: 'Charge',
+                    4: 'Pause',
+                    5: 'Finish'
+                };
+                
+                if (typeof statusValue === 'string') {
+                    return statusValue;
+                }
+                
+                return statusMap[statusValue] || `Unknown(${statusValue})`;
+            },
+            
+            getModeText: function(modeValue) {
+                const modeMap = {
+                    0: 'Rest',
+                    1: 'ChargeCC',
+                    2: 'ChargeCCCV', 
+                    3: 'ChargeCP',
+                    4: 'ChargeCPCV',
+                    5: 'DischargeCC',
+                    6: 'DischargeCCCV',
+                    7: 'DischargeCP',
+                    8: 'DischargeCPCV'
+                };
+                
+                if (typeof modeValue === 'string') {
+                    return modeValue;
+                }
+                
+                return modeMap[modeValue] || `Unknown(${modeValue})`;
+            },
+            
+            getStatusClass: function(status) {
+                if (!status || typeof status !== 'string') {
+                    return 'status-unknown';
+                }
+                const statusLower = status.toString().toLowerCase();
+                return `status-${statusLower}`;
+            },
+            
+            getStatusColor: function(status) {
+                const colors = {
+                    'Idle': 'secondary',
+                    'Rest': 'info',
+                    'Discharge': 'danger',
+                    'Charge': 'success',
+                    'Pause': 'warning',
+                    'Finish': 'primary'
+                };
+                return colors[status] || 'secondary';
+            }
+        };
+    </script>
+    
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

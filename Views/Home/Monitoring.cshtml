@@ -29,42 +29,176 @@
                 </label>
             </div>
         </div>
+        
+        <!-- Connection Status -->
+        <div class="alert alert-info d-flex align-items-center" id="connectionStatus">
+            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+            <span>Connecting to real-time data...</span>
+        </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h5>Channel Data</h5>
-            </div>
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="voltageChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <canvas id="currentChart"></canvas>
+<!-- Chart View -->
+<div id="chartView" class="view-content">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6>Chart Controls</h6>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showVoltage" checked>
+                                <label class="form-check-label" for="showVoltage">Voltage</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showCurrent" checked>
+                                <label class="form-check-label" for="showCurrent">Current</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showPower">
+                                <label class="form-check-label" for="showPower">Power</label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-lg-4">
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6>Active Channels</h6>
+    <div class="row">
+        <div class="col-lg-8">
+            <div id="voltageChartContainer" class="card mb-4">
+                <div class="card-header">
+                    <h5>Channel Voltages</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="voltageChart"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="card-body" id="channelStatus">
-                <p class="text-muted">Loading...</p>
+            
+            <div id="currentChartContainer" class="card mb-4">
+                <div class="card-header">
+                    <h5>Channel Currents</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="currentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="powerChartContainer" class="card mb-4" style="display: none;">
+                <div class="card-header">
+                    <h5>Channel Power</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="powerChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="card">
-            <div class="card-header">
-                <h6>Alarms</h6>
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6>Active Channels</h6>
+                </div>
+                <div class="card-body" id="channelStatus" style="max-height: 400px; overflow-y: auto;">
+                    <p class="text-muted">Loading...</p>
+                </div>
             </div>
-            <div class="card-body" id="alarmsList">
-                <p class="text-muted">No alarms</p>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h6>Alarms</h6>
+                </div>
+                <div class="card-body" id="alarmsList" style="max-height: 300px; overflow-y: auto;">
+                    <p class="text-muted">No alarms</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table View -->
+<div id="tableView" class="view-content" style="display: none;">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Channel Data Table</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Ch#</th>
+                                    <th>Status</th>
+                                    <th>Mode</th>
+                                    <th>Voltage</th>
+                                    <th>Current</th>
+                                    <th>Power</th>
+                                    <th>Capacity</th>
+                                    <th>Temp</th>
+                                    <th>Cycle</th>
+                                    <th>Step</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channelTableBody">
+                                <tr><td colspan="10" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mixed View -->
+<div id="mixedView" class="view-content" style="display: none;">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6>Voltage Trend</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 200px;">
+                        <canvas id="mixedVoltageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h6>Current Trend</h6>
+                </div>
+                <div class="card-body">
+                    <div style="height: 200px;">
+                        <canvas id="mixedCurrentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6>Channel Grid</h6>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                    <div class="row" id="channelGrid">
+                        <div class="col-12">
+                            <p class="text-muted text-center">Loading...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -79,6 +213,32 @@
     let currentData = { labels: [], datasets: [] };
     let powerData = { labels: [], datasets: [] };
     let displayMode = 'chart';
+    let connection;
+    let isConnected = false;
+    
+    function updateConnectionStatus(connected, message) {
+        isConnected = connected;
+        
+        // 전역 연결 상태 업데이트
+        window.globalConnectionStatus.updateIndicator(connected);
+        
+        const statusElement = document.getElementById('connectionStatus');
+        if (statusElement) {
+            if (connected) {
+                statusElement.className = 'alert alert-success d-flex align-items-center';
+                statusElement.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span>${message}</span>
+                `;
+            } else {
+                statusElement.className = 'alert alert-danger d-flex align-items-center';
+                statusElement.innerHTML = `
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span>${message}</span>
+                `;
+            }
+        }
+    }
     
     // Display mode switching
     document.querySelectorAll('input[name="displayMode"]').forEach(radio => {
@@ -119,6 +279,15 @@
     
     // Initialize main charts
     function initCharts() {
+        // Chart.js가 로드되었는지 확인
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded!');
+            setTimeout(initCharts, 1000); // 1초 후 재시도
+            return;
+        }
+        
+        console.log('Initializing charts...');
+        
         const ctx1 = document.getElementById('voltageChart').getContext('2d');
         voltageChart = new Chart(ctx1, {
             type: 'line',
@@ -126,6 +295,10 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 scales: {
                     y: {
                         beginAtZero: false,
@@ -136,7 +309,15 @@
                     }
                 },
                 plugins: {
-                    title: { display: true, text: 'Channel Voltages' }
+                    title: { display: true, text: 'Channel Voltages' },
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        maxHeight: 100
+                    }
+                },
+                elements: {
+                    point: { radius: 2 }
                 }
             }
         });
@@ -148,6 +329,10 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 scales: {
                     y: {
                         title: { display: true, text: 'Current (A)' }
@@ -157,7 +342,15 @@
                     }
                 },
                 plugins: {
-                    title: { display: true, text: 'Channel Currents' }
+                    title: { display: true, text: 'Channel Currents' },
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        maxHeight: 100
+                    }
+                },
+                elements: {
+                    point: { radius: 2 }
                 }
             }
         });
@@ -169,6 +362,10 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 scales: {
                     y: {
                         title: { display: true, text: 'Power (W)' }
@@ -178,17 +375,33 @@
                     }
                 },
                 plugins: {
-                    title: { display: true, text: 'Channel Power' }
+                    title: { display: true, text: 'Channel Power' },
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        maxHeight: 100
+                    }
+                },
+                elements: {
+                    point: { radius: 2 }
                 }
             }
         });
     }
     
     function initMixedCharts() {
+        // Chart.js가 로드되었는지 확인
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded for mixed charts!');
+            return;
+        }
+        
+        console.log('Initializing mixed charts...');
+        
         const ctx1 = document.getElementById('mixedVoltageChart').getContext('2d');
         mixedVoltageChart = new Chart(ctx1, {
             type: 'line',
-            data: voltageData,
+            data: JSON.parse(JSON.stringify(voltageData)), // Deep copy
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -208,7 +421,7 @@
         const ctx2 = document.getElementById('mixedCurrentChart').getContext('2d');
         mixedCurrentChart = new Chart(ctx2, {
             type: 'line',
-            data: currentData,
+            data: JSON.parse(JSON.stringify(currentData)), // Deep copy
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -227,31 +440,48 @@
     }
     
     // SignalR connection
-    const connection = new signalR.HubConnectionBuilder()
-        .withUrl("/deviceHub")
-        .build();
+    function initSignalR() {
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/deviceHub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
 
-    connection.start().then(function () {
-        console.log("SignalR Connected for monitoring");
-        connection.invoke("JoinDeviceGroup", deviceId);
-        connection.invoke("RequestLatestData", deviceId);
-        initCharts();
-    }).catch(function (err) {
-        console.error(err.toString());
-    });
+        connection.start().then(function () {
+            console.log("✅ SignalR Connected for monitoring");
+            return connection.invoke("JoinDeviceGroup", deviceId);
+        }).then(function() {
+            console.log("✅ Joined device group for monitoring:", deviceId);
+            updateConnectionStatus(true, "Connected to real-time monitoring");
+            connection.invoke("RequestLatestData", deviceId);
+        }).catch(function (err) {
+            console.error("❌ SignalR connection failed:", err);
+            updateConnectionStatus(false, "Failed to connect: " + err.toString());
+            setTimeout(initSignalR, 3000);
+        });
 
-    connection.on("ReceiveDeviceData", function (deviceData) {
-        updateCharts(deviceData);
-        updateChannelStatus(deviceData.channels);
-        updateChannelTable(deviceData.channels);
-        updateChannelGrid(deviceData.channels);
-        updateAlarms(deviceData.alarmData);
-    });
+        connection.on("ReceiveDeviceData", function (deviceData) {
+            console.log("📦 Received device data for monitoring", deviceData);
+            const channels = deviceData.channels || deviceData.Channels || [];
+            updateCharts(deviceData);
+            updateChannelStatus(channels);
+            updateChannelTable(channels);
+            updateChannelGrid(channels);
+            const alarms = deviceData.alarmData || deviceData.AlarmData || [];
+            updateAlarms(alarms);
+        });
+
+        connection.onclose(function(error) {
+            console.log("🔴 SignalR connection closed", error);
+            updateConnectionStatus(false, "Connection lost. Attempting to reconnect...");
+            setTimeout(initSignalR, 3000);
+        });
+    }
     
     function updateCharts(deviceData) {
         const timestamp = new Date(deviceData.timestamp).toLocaleTimeString();
+        const channels = deviceData.channels || deviceData.Channels || [];
         
-        // Update data arrays
+        // Update data arrays - keep last 50 points
         [voltageData, currentData, powerData].forEach(data => {
             if (data.labels.length > 50) {
                 data.labels = data.labels.slice(-49);
@@ -262,72 +492,102 @@
             data.labels.push(timestamp);
         });
         
-        deviceData.channels.forEach((channel, index) => {
+        channels.forEach((channel, index) => {
+            const channelNumber = channel.channelNumber || channel.ChannelNumber || index;
+            const voltage = channel.voltage || channel.Voltage || 0;
+            const current = channel.current || channel.Current || 0;
+            const power = channel.power || channel.Power || 0;
+            
+            // Generate color for each channel
+            const color = `hsl(${(channelNumber * 137.5) % 360}, 70%, 50%)`;
+            
             // Voltage data
             if (!voltageData.datasets[index]) {
                 voltageData.datasets[index] = {
-                    label: `Ch ${channel.channelNumber}`,
+                    label: `Ch ${channelNumber}`,
                     data: [],
-                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
-                    fill: false
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: false,
+                    borderWidth: 2
                 };
             }
-            voltageData.datasets[index].data.push(channel.voltage);
+            voltageData.datasets[index].data.push(voltage);
             
             // Current data
             if (!currentData.datasets[index]) {
                 currentData.datasets[index] = {
-                    label: `Ch ${channel.channelNumber}`,
+                    label: `Ch ${channelNumber}`,
                     data: [],
-                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
-                    fill: false
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: false,
+                    borderWidth: 2
                 };
             }
-            currentData.datasets[index].data.push(channel.current);
+            currentData.datasets[index].data.push(current);
             
             // Power data
             if (!powerData.datasets[index]) {
                 powerData.datasets[index] = {
-                    label: `Ch ${channel.channelNumber}`,
+                    label: `Ch ${channelNumber}`,
                     data: [],
-                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
-                    fill: false
+                    borderColor: color,
+                    backgroundColor: color + '20',
+                    fill: false,
+                    borderWidth: 2
                 };
             }
-            powerData.datasets[index].data.push(channel.power);
+            powerData.datasets[index].data.push(power);
         });
         
         // Update charts
         if (voltageChart) voltageChart.update('none');
         if (currentChart) currentChart.update('none');
         if (powerChart) powerChart.update('none');
-        if (mixedVoltageChart) mixedVoltageChart.update('none');
-        if (mixedCurrentChart) mixedCurrentChart.update('none');
+        if (mixedVoltageChart) {
+            mixedVoltageChart.data = JSON.parse(JSON.stringify(voltageData));
+            mixedVoltageChart.update('none');
+        }
+        if (mixedCurrentChart) {
+            mixedCurrentChart.data = JSON.parse(JSON.stringify(currentData));
+            mixedCurrentChart.update('none');
+        }
     }
     
     function updateChannelStatus(channels) {
-        const statusHtml = channels.map(ch => `
-            <div class="mb-2 p-2 border rounded">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <strong>Ch ${ch.channelNumber}</strong>
-                    <span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span>
+        const statusHtml = channels.map(ch => {
+            const channelNumber = ch.channelNumber || ch.ChannelNumber || 'N/A';
+            const rawStatus = ch.status !== undefined ? ch.status : (ch.Status !== undefined ? ch.Status : 0);
+            const voltage = ch.voltage || ch.Voltage || 0;
+            const current = ch.current || ch.Current || 0;
+            const power = ch.power || ch.Power || 0;
+            const status = getStatusText(rawStatus);
+            const statusClass = getStatusClass(status);
+            
+            return `
+                <div class="mb-2 p-2 border rounded">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong>Ch ${channelNumber}</strong>
+                        <span class="badge ${statusClass}">${status}</span>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="data-value">${parseFloat(voltage).toFixed(3)}</div>
+                            <small class="text-muted">V</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="data-value">${parseFloat(current).toFixed(3)}</div>
+                            <small class="text-muted">A</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="data-value">${parseFloat(power).toFixed(2)}</div>
+                            <small class="text-muted">W</small>
+                        </div>
+                    </div>
                 </div>
-                <div class="row text-center">
-                    <div class="col-4">
-                        <div class="data-value">${ch.voltage.toFixed(3)}</div>
-                        <small class="text-muted">V</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="data-value">${ch.current.toFixed(3)}</div>
-                        <small class="text-muted">A</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="data-value">${ch.power.toFixed(2)}</div>
-                        <small class="text-muted">W</small>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         document.getElementById('channelStatus').innerHTML = statusHtml || '<p class="text-muted">No channels</p>';
     }
@@ -336,20 +596,37 @@
         const tbody = document.getElementById('channelTableBody');
         if (!tbody) return;
         
-        const html = channels.map(ch => `
-            <tr>
-                <td><strong>${ch.channelNumber}</strong></td>
-                <td><span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span></td>
-                <td><span class="badge bg-secondary">${ch.mode}</span></td>
-                <td class="data-value">${ch.voltage.toFixed(3)}</td>
-                <td class="data-value">${ch.current.toFixed(3)}</td>
-                <td class="data-value">${ch.power.toFixed(2)}</td>
-                <td class="data-value">${ch.capacity.toFixed(2)}</td>
-                <td class="data-value">${ch.chamberTemperature.toFixed(1)}</td>
-                <td class="data-value">${ch.cycleNo}</td>
-                <td class="data-value">${ch.stepNo}</td>
-            </tr>
-        `).join('');
+        const html = channels.map(ch => {
+            const channelNumber = ch.channelNumber || ch.ChannelNumber || 'N/A';
+            const rawStatus = ch.status !== undefined ? ch.status : (ch.Status !== undefined ? ch.Status : 0);
+            const rawMode = ch.mode !== undefined ? ch.mode : (ch.Mode !== undefined ? ch.Mode : 0);
+            const voltage = ch.voltage || ch.Voltage || 0;
+            const current = ch.current || ch.Current || 0;
+            const power = ch.power || ch.Power || 0;
+            const capacity = ch.capacity || ch.Capacity || 0;
+            const temperature = ch.chamberTemperature || ch.ChamberTemperature || 0;
+            const cycleNo = ch.cycleNo || ch.CycleNo || 0;
+            const stepNo = ch.stepNo || ch.StepNo || 0;
+            
+            const status = getStatusText(rawStatus);
+            const mode = getModeText(rawMode);
+            const statusClass = getStatusClass(status);
+            
+            return `
+                <tr>
+                    <td><strong>${channelNumber}</strong></td>
+                    <td><span class="badge ${statusClass}">${status}</span></td>
+                    <td><span class="badge bg-secondary">${mode}</span></td>
+                    <td class="data-value">${parseFloat(voltage).toFixed(3)}</td>
+                    <td class="data-value">${parseFloat(current).toFixed(3)}</td>
+                    <td class="data-value">${parseFloat(power).toFixed(2)}</td>
+                    <td class="data-value">${parseFloat(capacity).toFixed(2)}</td>
+                    <td class="data-value">${parseFloat(temperature).toFixed(1)}</td>
+                    <td class="data-value">${cycleNo}</td>
+                    <td class="data-value">${stepNo}</td>
+                </tr>
+            `;
+        }).join('');
         
         tbody.innerHTML = html || '<tr><td colspan="10" class="text-center text-muted">No channel data</td></tr>';
     }
@@ -358,48 +635,64 @@
         const grid = document.getElementById('channelGrid');
         if (!grid) return;
         
-        const html = channels.map(ch => `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-header bg-${getStatusColor(ch.status)}">
-                        <h6 class="mb-0 text-white">Channel ${ch.channelNumber}</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-4">
-                                <div class="data-value">${ch.voltage.toFixed(2)}</div>
-                                <small class="text-muted">V</small>
+        const html = channels.map(ch => {
+            const channelNumber = ch.channelNumber || ch.ChannelNumber || 'N/A';
+            const rawStatus = ch.status !== undefined ? ch.status : (ch.Status !== undefined ? ch.Status : 0);
+            const rawMode = ch.mode !== undefined ? ch.mode : (ch.Mode !== undefined ? ch.Mode : 0);
+            const voltage = ch.voltage || ch.Voltage || 0;
+            const current = ch.current || ch.Current || 0;
+            const power = ch.power || ch.Power || 0;
+            const capacity = ch.capacity || ch.Capacity || 0;
+            const temperature = ch.chamberTemperature || ch.ChamberTemperature || 0;
+            const stepNo = ch.stepNo || ch.StepNo || 0;
+            
+            const status = getStatusText(rawStatus);
+            const mode = getModeText(rawMode);
+            const statusColor = getStatusColor(status);
+            
+            return `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header bg-${statusColor}">
+                            <h6 class="mb-0 text-white">Channel ${channelNumber}</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="data-value">${parseFloat(voltage).toFixed(2)}</div>
+                                    <small class="text-muted">V</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="data-value">${parseFloat(current).toFixed(2)}</div>
+                                    <small class="text-muted">A</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="data-value">${parseFloat(power).toFixed(1)}</div>
+                                    <small class="text-muted">W</small>
+                                </div>
                             </div>
-                            <div class="col-4">
-                                <div class="data-value">${ch.current.toFixed(2)}</div>
-                                <small class="text-muted">A</small>
-                            </div>
-                            <div class="col-4">
-                                <div class="data-value">${ch.power.toFixed(1)}</div>
-                                <small class="text-muted">W</small>
+                            <hr>
+                            <div class="small">
+                                <div class="d-flex justify-content-between">
+                                    <span>Capacity:</span>
+                                    <span class="data-value">${parseFloat(capacity).toFixed(2)} Ah</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Temp:</span>
+                                    <span class="data-value">${parseFloat(temperature).toFixed(1)} °C</span>
+                                </div>
                             </div>
                         </div>
-                        <hr>
-                        <div class="small">
-                            <div class="d-flex justify-content-between">
-                                <span>Capacity:</span>
-                                <span class="data-value">${ch.capacity.toFixed(2)} Ah</span>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span>Temp:</span>
-                                <span class="data-value">${ch.chamberTemperature.toFixed(1)} °C</span>
-                            </div>
+                        <div class="card-footer">
+                            <small>
+                                <span class="badge bg-secondary">${mode}</span>
+                                <span class="text-muted">Step ${stepNo}</span>
+                            </small>
                         </div>
-                    </div>
-                    <div class="card-footer">
-                        <small>
-                            <span class="badge bg-secondary">${ch.mode}</span>
-                            <span class="text-muted">Step ${ch.stepNo}</span>
-                        </small>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         grid.innerHTML = html;
     }
@@ -410,31 +703,86 @@
             return;
         }
         
-        const alarmsHtml = alarms.map(alarm => `
-            <div class="alert alert-sm alarm-${alarm.severity.toLowerCase()}" role="alert">
-                <strong>${alarm.name}</strong><br>
-                <small>${alarm.description}</small>
-            </div>
-        `).join('');
+        const alarmsHtml = alarms.map(alarm => {
+            const name = alarm.name || alarm.Name || 'Unknown Alarm';
+            const description = alarm.description || alarm.Description || 'No description';
+            const severity = alarm.severity || alarm.Severity || 'info';
+            const timestamp = alarm.timestamp || alarm.Timestamp || new Date().toISOString();
+            
+            return `
+                <div class="alert alert-sm alarm-${severity.toString().toLowerCase()}" role="alert">
+                    <strong>${name}</strong><br>
+                    <small>${description}</small>
+                    <div class="small text-muted">${new Date(timestamp).toLocaleTimeString()}</div>
+                </div>
+            `;
+        }).join('');
         
         document.getElementById('alarmsList').innerHTML = alarmsHtml;
     }
     
-    function getStatusColor(status) {
-        const colors = {
-            'Idle': 'secondary',
-            'Rest': 'info',
-            'Discharge': 'danger',
-            'Charge': 'success',
-            'Pause': 'warning',
-            'Finish': 'primary'
-        };
-        return colors[status] || 'secondary';
+    // Utility functions (공통 함수 사용)
+    function getStatusText(statusValue) {
+        return window.commonFunctions.getStatusText(statusValue);
     }
     
-    // Update every 100ms
+    function getModeText(modeValue) {
+        return window.commonFunctions.getModeText(modeValue);
+    }
+    
+    function getStatusClass(status) {
+        return window.commonFunctions.getStatusClass(status);
+    }
+    
+    function getStatusColor(status) {
+        return window.commonFunctions.getStatusColor(status);
+    }
+    
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("🚀 Monitoring page loaded, initializing...");
+        
+        // 필수 라이브러리 확인
+        if (typeof Chart === 'undefined') {
+            console.error('❌ Chart.js is not available! Please check if the library is loaded.');
+            updateConnectionStatus(false, "Chart.js library not loaded");
+            return;
+        }
+        
+        if (typeof signalR === 'undefined') {
+            console.error('❌ SignalR is not available! Please check if the library is loaded.');
+            updateConnectionStatus(false, "SignalR library not loaded");
+            return;
+        }
+        
+        console.log('✅ All libraries loaded successfully');
+        console.log('Chart.js version:', Chart.version);
+        
+        // 전역 연결 상태 업데이트
+        window.globalConnectionStatus.updateIndicator(false);
+        
+        // SignalR 초기화
+        initSignalR();
+        
+        // 차트 초기화 (약간의 지연을 두고)
+        setTimeout(() => {
+            initCharts();
+            console.log('✅ Charts initialized successfully');
+        }, 200);
+    });
+    
+    // Update every 500ms for real-time feel
     setInterval(() => {
-        connection.invoke("RequestLatestData", deviceId);
-    }, 100);
+        if (isConnected && connection) {
+            connection.invoke("RequestLatestData", deviceId);
+        }
+    }, 500);
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        if (connection && isConnected) {
+            connection.invoke("LeaveDeviceGroup", deviceId);
+        }
+    });
 </script>
 }

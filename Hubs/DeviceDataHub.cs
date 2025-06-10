@@ -95,12 +95,81 @@ namespace GPIMSWebServer.Hubs
             }
         }
 
+        // 새로 추가: 여러 디바이스 그룹에 한번에 참가
+        public async Task JoinMultipleDeviceGroups(List<string> deviceIds)
+        {
+            try
+            {
+                foreach (var deviceId in deviceIds)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
+                    _logger.LogInformation($"Client {Context.ConnectionId} joined group Device_{deviceId}");
+                }
+                
+                // 모든 디바이스의 최신 데이터 전송
+                foreach (var deviceId in deviceIds)
+                {
+                    var latestData = _dataService.GetLatestDeviceData(deviceId);
+                    if (latestData != null)
+                    {
+                        await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
+                    }
+                }
+                
+                _logger.LogInformation($"Client {Context.ConnectionId} joined {deviceIds.Count} device groups");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error joining multiple device groups for connection {Context.ConnectionId}");
+            }
+        }
+
+        // 새로 추가: 전체 디바이스 상태 브로드캐스트
+        public async Task BroadcastAllDevicesStatus()
+        {
+            try
+            {
+                var activeDevices = _dataService.GetActiveDevices();
+                var deviceStatusList = new List<object>();
+                
+                foreach (var deviceId in activeDevices)
+                {
+                    var latestData = _dataService.GetLatestDeviceData(deviceId);
+                    if (latestData != null)
+                    {
+                        var deviceStatus = new
+                        {
+                            DeviceId = deviceId,
+                            IsOnline = true,
+                            LastUpdate = latestData.Timestamp,
+                            ChannelCount = latestData.Channels.Count,
+                            ActiveChannels = latestData.Channels.Count(c => c.Status != ChannelStatus.Idle),
+                            TotalPower = latestData.Channels.Sum(c => c.Power),
+                            HasAlarms = latestData.AlarmData.Any()
+                        };
+                        deviceStatusList.Add(deviceStatus);
+                    }
+                }
+                
+                await Clients.All.SendAsync("ReceiveAllDevicesStatus", deviceStatusList);
+                _logger.LogDebug($"Broadcasted status for {deviceStatusList.Count} devices");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error broadcasting all devices status");
+            }
+        }
+
         public override async Task OnConnectedAsync()
         {
             try
             {
                 await Clients.Caller.SendAsync("Connected", Context.ConnectionId);
                 _logger.LogInformation($"Client {Context.ConnectionId} connected to DeviceDataHub");
+                
+                // 연결 즉시 활성 디바이스 목록 전송
+                await RequestDeviceList();
+                
                 await base.OnConnectedAsync();
             }
             catch (Exception ex)
