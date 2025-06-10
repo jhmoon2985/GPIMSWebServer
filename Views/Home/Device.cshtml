@@ -34,6 +34,35 @@
 
 <div id="deviceContent">
     <div class="row">
+        <!-- Chart Section -->
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-chart-line"></i> Real-time Voltage & Current Chart</h5>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showVoltageChart" checked>
+                            <label class="form-check-label" for="showVoltageChart">Voltage</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showCurrentChart" checked>
+                            <label class="form-check-label" for="showCurrentChart">Current</label>
+                        </div>
+                        <button id="clearChartBtn" class="btn btn-sm btn-outline-danger ms-2">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="voltageCurrentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
         <!-- Channel Data -->
         <div class="col-lg-8">
             <div class="card mb-4">
@@ -274,6 +303,17 @@
     let currentPage = 1;
     let channelsPerPage = 20;
     
+    // 차트 관련 변수
+    let voltageCurrentChart;
+    let chartData = {
+        labels: [],
+        datasets: {
+            voltage: [],
+            current: []
+        }
+    };
+    const maxDataPoints = 50; // 최대 데이터 포인트 개수
+    
     function updateConnectionStatus(connected, message) {
         isConnected = connected;
         const statusElement = document.getElementById('connectionStatus');
@@ -291,6 +331,176 @@
                 <span>${message}</span>
             `;
         }
+    }
+
+    // 차트 초기화
+    function initChart() {
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded!');
+            return;
+        }
+
+        const ctx = document.getElementById('voltageCurrentChart').getContext('2d');
+        
+        voltageCurrentChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Voltage (V)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Current (A)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Channel Voltage & Current'
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                elements: {
+                    point: {
+                        radius: 2
+                    }
+                }
+            }
+        });
+
+        console.log('✅ Chart initialized');
+    }
+
+    // 차트 데이터 업데이트
+    function updateChart(deviceData) {
+        if (!voltageCurrentChart) return;
+
+        const timestamp = new Date(deviceData.timestamp || deviceData.Timestamp).toLocaleTimeString();
+        const channels = deviceData.channels || deviceData.Channels || [];
+
+        // 라벨 추가 (시간)
+        chartData.labels.push(timestamp);
+        if (chartData.labels.length > maxDataPoints) {
+            chartData.labels = chartData.labels.slice(-maxDataPoints);
+        }
+
+        // 각 채널의 데이터 처리
+        const showVoltage = document.getElementById('showVoltageChart').checked;
+        const showCurrent = document.getElementById('showCurrentChart').checked;
+
+        // 기존 데이터셋 초기화
+        voltageCurrentChart.data.labels = chartData.labels;
+        voltageCurrentChart.data.datasets = [];
+
+        channels.forEach((channel, index) => {
+            const channelNumber = channel.channelNumber || channel.ChannelNumber || index;
+            const voltage = channel.voltage || channel.Voltage || 0;
+            const current = channel.current || channel.Current || 0;
+            
+            // 각 채널별 고유 색상 생성
+            const hue = (channelNumber * 137.5) % 360;
+            const voltageColor = `hsl(${hue}, 70%, 50%)`;
+            const currentColor = `hsl(${(hue + 180) % 360}, 70%, 60%)`;
+
+            // 채널별 데이터 저장
+            if (!chartData.datasets.voltage[index]) {
+                chartData.datasets.voltage[index] = [];
+            }
+            if (!chartData.datasets.current[index]) {
+                chartData.datasets.current[index] = [];
+            }
+
+            chartData.datasets.voltage[index].push(voltage);
+            chartData.datasets.current[index].push(current);
+
+            // 데이터 포인트 수 제한
+            if (chartData.datasets.voltage[index].length > maxDataPoints) {
+                chartData.datasets.voltage[index] = chartData.datasets.voltage[index].slice(-maxDataPoints);
+            }
+            if (chartData.datasets.current[index].length > maxDataPoints) {
+                chartData.datasets.current[index] = chartData.datasets.current[index].slice(-maxDataPoints);
+            }
+
+            // Voltage 데이터셋 추가
+            if (showVoltage) {
+                voltageCurrentChart.data.datasets.push({
+                    label: `Ch${channelNumber} Voltage`,
+                    data: [...chartData.datasets.voltage[index]],
+                    borderColor: voltageColor,
+                    backgroundColor: voltageColor + '20',
+                    yAxisID: 'y',
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 2
+                });
+            }
+
+            // Current 데이터셋 추가
+            if (showCurrent) {
+                voltageCurrentChart.data.datasets.push({
+                    label: `Ch${channelNumber} Current`,
+                    data: [...chartData.datasets.current[index]],
+                    borderColor: currentColor,
+                    backgroundColor: currentColor + '20',
+                    yAxisID: 'y1',
+                    fill: false,
+                    borderWidth: 2,
+                    borderDash: [5, 5], // 점선으로 구분
+                    pointRadius: 2
+                });
+            }
+        });
+
+        voltageCurrentChart.update('none');
+    }
+
+    // 차트 클리어
+    function clearChart() {
+        if (!voltageCurrentChart) return;
+        
+        chartData.labels = [];
+        chartData.datasets.voltage = [];
+        chartData.datasets.current = [];
+        
+        voltageCurrentChart.data.labels = [];
+        voltageCurrentChart.data.datasets = [];
+        voltageCurrentChart.update();
+        
+        console.log('📊 Chart cleared');
     }
 
     function initSignalR() {
@@ -314,6 +524,7 @@
             console.log("📦 Received device data for update #" + (updateCount + 1), deviceData);
             updateCount++;
             forceUpdateUI(deviceData);
+            updateChart(deviceData); // 차트 업데이트 추가
         });
 
         connection.onclose(function(error) {
@@ -681,6 +892,23 @@
         }
     });
 
+    // 차트 관련 이벤트 리스너
+    document.getElementById('showVoltageChart').addEventListener('change', function() {
+        if (voltageCurrentChart) {
+            voltageCurrentChart.update();
+        }
+    });
+
+    document.getElementById('showCurrentChart').addEventListener('change', function() {
+        if (voltageCurrentChart) {
+            voltageCurrentChart.update();
+        }
+    });
+
+    document.getElementById('clearChartBtn').addEventListener('click', function() {
+        clearChart();
+    });
+
     document.getElementById('channelsPerPage').addEventListener('change', function() {
         channelsPerPage = this.value === 'all' ? 'all' : parseInt(this.value);
         currentPage = 1;
@@ -716,7 +944,18 @@
             return;
         }
         
+        if (typeof Chart === 'undefined') {
+            console.error('❌ Chart.js is not available! Please check if the library is loaded.');
+            updateConnectionStatus(false, "Chart.js library not loaded");
+            return;
+        }
+        
         console.log('✅ All libraries loaded successfully');
+        
+        // 차트 초기화
+        setTimeout(() => {
+            initChart();
+        }, 100);
         
         // SignalR 초기화
         initSignalR();
