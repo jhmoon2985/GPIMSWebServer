@@ -6,9 +6,29 @@
 <div class="row">
     <div class="col-12">
         <h1><i class="fas fa-chart-line"></i> Real-time Monitoring - @deviceId</h1>
-        <a href="/" class="btn btn-outline-secondary mb-3">
-            <i class="fas fa-arrow-left"></i> Back to Overview
-        </a>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Overview
+            </a>
+            
+            <!-- Display Mode Toggle -->
+            <div class="btn-group" role="group" aria-label="Display mode">
+                <input type="radio" class="btn-check" name="displayMode" id="chartMode" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="chartMode">
+                    <i class="fas fa-chart-line"></i> Chart View
+                </label>
+                
+                <input type="radio" class="btn-check" name="displayMode" id="tableMode" autocomplete="off">
+                <label class="btn btn-outline-primary" for="tableMode">
+                    <i class="fas fa-table"></i> Table View
+                </label>
+                
+                <input type="radio" class="btn-check" name="displayMode" id="mixedMode" autocomplete="off">
+                <label class="btn btn-outline-primary" for="mixedMode">
+                    <i class="fas fa-th"></i> Mixed View
+                </label>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -53,11 +73,51 @@
 @section Scripts {
 <script>
     const deviceId = '@deviceId';
-    let voltageChart, currentChart;
+    let voltageChart, currentChart, powerChart;
+    let mixedVoltageChart, mixedCurrentChart;
     let voltageData = { labels: [], datasets: [] };
     let currentData = { labels: [], datasets: [] };
+    let powerData = { labels: [], datasets: [] };
+    let displayMode = 'chart';
     
-    // Initialize charts
+    // Display mode switching
+    document.querySelectorAll('input[name="displayMode"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            displayMode = this.id.replace('Mode', '');
+            switchDisplayMode(displayMode);
+        });
+    });
+    
+    function switchDisplayMode(mode) {
+        document.querySelectorAll('.view-content').forEach(view => {
+            view.style.display = 'none';
+        });
+        
+        const targetView = document.getElementById(`${mode}View`);
+        if (targetView) {
+            targetView.style.display = 'block';
+        }
+        
+        // Initialize charts for the selected view if not already done
+        if (mode === 'mixed' && !mixedVoltageChart) {
+            initMixedCharts();
+        }
+    }
+    
+    // Chart visibility toggles
+    document.getElementById('showVoltage').addEventListener('change', function() {
+        document.getElementById('voltageChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('showCurrent').addEventListener('change', function() {
+        document.getElementById('currentChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    document.getElementById('showPower').addEventListener('change', function() {
+        document.getElementById('powerChartContainer').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Initialize main charts
     function initCharts() {
         const ctx1 = document.getElementById('voltageChart').getContext('2d');
         voltageChart = new Chart(ctx1, {
@@ -101,6 +161,69 @@
                 }
             }
         });
+        
+        const ctx3 = document.getElementById('powerChart').getContext('2d');
+        powerChart = new Chart(ctx3, {
+            type: 'line',
+            data: powerData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: { display: true, text: 'Power (W)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Time' }
+                    }
+                },
+                plugins: {
+                    title: { display: true, text: 'Channel Power' }
+                }
+            }
+        });
+    }
+    
+    function initMixedCharts() {
+        const ctx1 = document.getElementById('mixedVoltageChart').getContext('2d');
+        mixedVoltageChart = new Chart(ctx1, {
+            type: 'line',
+            data: voltageData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: false },
+                    x: { display: false }
+                },
+                plugins: {
+                    legend: { display: false }
+                },
+                elements: {
+                    point: { radius: 1 }
+                }
+            }
+        });
+        
+        const ctx2 = document.getElementById('mixedCurrentChart').getContext('2d');
+        mixedCurrentChart = new Chart(ctx2, {
+            type: 'line',
+            data: currentData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: false },
+                    x: { display: false }
+                },
+                plugins: {
+                    legend: { display: false }
+                },
+                elements: {
+                    point: { radius: 1 }
+                }
+            }
+        });
     }
     
     // SignalR connection
@@ -120,23 +243,27 @@
     connection.on("ReceiveDeviceData", function (deviceData) {
         updateCharts(deviceData);
         updateChannelStatus(deviceData.channels);
+        updateChannelTable(deviceData.channels);
+        updateChannelGrid(deviceData.channels);
         updateAlarms(deviceData.alarmData);
     });
     
     function updateCharts(deviceData) {
         const timestamp = new Date(deviceData.timestamp).toLocaleTimeString();
         
-        // Update voltage chart
-        if (voltageData.labels.length > 50) {
-            voltageData.labels = voltageData.labels.slice(-49);
-            voltageData.datasets.forEach(dataset => {
-                dataset.data = dataset.data.slice(-49);
-            });
-        }
-        
-        voltageData.labels.push(timestamp);
+        // Update data arrays
+        [voltageData, currentData, powerData].forEach(data => {
+            if (data.labels.length > 50) {
+                data.labels = data.labels.slice(-49);
+                data.datasets.forEach(dataset => {
+                    dataset.data = dataset.data.slice(-49);
+                });
+            }
+            data.labels.push(timestamp);
+        });
         
         deviceData.channels.forEach((channel, index) => {
+            // Voltage data
             if (!voltageData.datasets[index]) {
                 voltageData.datasets[index] = {
                     label: `Ch ${channel.channelNumber}`,
@@ -146,11 +273,8 @@
                 };
             }
             voltageData.datasets[index].data.push(channel.voltage);
-        });
-        
-        // Update current chart similarly
-        currentData.labels = [...voltageData.labels];
-        deviceData.channels.forEach((channel, index) => {
+            
+            // Current data
             if (!currentData.datasets[index]) {
                 currentData.datasets[index] = {
                     label: `Ch ${channel.channelNumber}`,
@@ -160,25 +284,124 @@
                 };
             }
             currentData.datasets[index].data.push(channel.current);
+            
+            // Power data
+            if (!powerData.datasets[index]) {
+                powerData.datasets[index] = {
+                    label: `Ch ${channel.channelNumber}`,
+                    data: [],
+                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
+                    fill: false
+                };
+            }
+            powerData.datasets[index].data.push(channel.power);
         });
         
-        voltageChart.update('none');
-        currentChart.update('none');
+        // Update charts
+        if (voltageChart) voltageChart.update('none');
+        if (currentChart) currentChart.update('none');
+        if (powerChart) powerChart.update('none');
+        if (mixedVoltageChart) mixedVoltageChart.update('none');
+        if (mixedCurrentChart) mixedCurrentChart.update('none');
     }
     
     function updateChannelStatus(channels) {
         const statusHtml = channels.map(ch => `
-            <div class="mb-2">
-                <span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span>
-                <strong>Ch ${ch.channelNumber}</strong>
-                <div class="small text-muted">
-                    V: <span class="data-value">${ch.voltage.toFixed(3)}</span>V
-                    I: <span class="data-value">${ch.current.toFixed(3)}</span>A
+            <div class="mb-2 p-2 border rounded">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong>Ch ${ch.channelNumber}</strong>
+                    <span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span>
+                </div>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="data-value">${ch.voltage.toFixed(3)}</div>
+                        <small class="text-muted">V</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="data-value">${ch.current.toFixed(3)}</div>
+                        <small class="text-muted">A</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="data-value">${ch.power.toFixed(2)}</div>
+                        <small class="text-muted">W</small>
+                    </div>
                 </div>
             </div>
         `).join('');
         
         document.getElementById('channelStatus').innerHTML = statusHtml || '<p class="text-muted">No channels</p>';
+    }
+    
+    function updateChannelTable(channels) {
+        const tbody = document.getElementById('channelTableBody');
+        if (!tbody) return;
+        
+        const html = channels.map(ch => `
+            <tr>
+                <td><strong>${ch.channelNumber}</strong></td>
+                <td><span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span></td>
+                <td><span class="badge bg-secondary">${ch.mode}</span></td>
+                <td class="data-value">${ch.voltage.toFixed(3)}</td>
+                <td class="data-value">${ch.current.toFixed(3)}</td>
+                <td class="data-value">${ch.power.toFixed(2)}</td>
+                <td class="data-value">${ch.capacity.toFixed(2)}</td>
+                <td class="data-value">${ch.chamberTemperature.toFixed(1)}</td>
+                <td class="data-value">${ch.cycleNo}</td>
+                <td class="data-value">${ch.stepNo}</td>
+            </tr>
+        `).join('');
+        
+        tbody.innerHTML = html || '<tr><td colspan="10" class="text-center text-muted">No channel data</td></tr>';
+    }
+    
+    function updateChannelGrid(channels) {
+        const grid = document.getElementById('channelGrid');
+        if (!grid) return;
+        
+        const html = channels.map(ch => `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-header bg-${getStatusColor(ch.status)}">
+                        <h6 class="mb-0 text-white">Channel ${ch.channelNumber}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="data-value">${ch.voltage.toFixed(2)}</div>
+                                <small class="text-muted">V</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="data-value">${ch.current.toFixed(2)}</div>
+                                <small class="text-muted">A</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="data-value">${ch.power.toFixed(1)}</div>
+                                <small class="text-muted">W</small>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="small">
+                            <div class="d-flex justify-content-between">
+                                <span>Capacity:</span>
+                                <span class="data-value">${ch.capacity.toFixed(2)} Ah</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Temp:</span>
+                                <span class="data-value">${ch.chamberTemperature.toFixed(1)} °C</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <small>
+                            <span class="badge bg-secondary">${ch.mode}</span>
+                            <span class="text-muted">Step ${ch.stepNo}</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        grid.innerHTML = html;
     }
     
     function updateAlarms(alarms) {
@@ -195,6 +418,18 @@
         `).join('');
         
         document.getElementById('alarmsList').innerHTML = alarmsHtml;
+    }
+    
+    function getStatusColor(status) {
+        const colors = {
+            'Idle': 'secondary',
+            'Rest': 'info',
+            'Discharge': 'danger',
+            'Charge': 'success',
+            'Pause': 'warning',
+            'Finish': 'primary'
+        };
+        return colors[status] || 'secondary';
     }
     
     // Update every 100ms
