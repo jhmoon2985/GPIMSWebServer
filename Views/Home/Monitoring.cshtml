@@ -1,0 +1,205 @@
+@{
+    ViewData["Title"] = "Real-time Monitoring";
+    var deviceId = ViewBag.DeviceId as string;
+}
+
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-chart-line"></i> Real-time Monitoring - @deviceId</h1>
+        <a href="/" class="btn btn-outline-secondary mb-3">
+            <i class="fas fa-arrow-left"></i> Back to Overview
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Channel Data</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="voltageChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <canvas id="currentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6>Active Channels</h6>
+            </div>
+            <div class="card-body" id="channelStatus">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6>Alarms</h6>
+            </div>
+            <div class="card-body" id="alarmsList">
+                <p class="text-muted">No alarms</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const deviceId = '@deviceId';
+    let voltageChart, currentChart;
+    let voltageData = { labels: [], datasets: [] };
+    let currentData = { labels: [], datasets: [] };
+    
+    // Initialize charts
+    function initCharts() {
+        const ctx1 = document.getElementById('voltageChart').getContext('2d');
+        voltageChart = new Chart(ctx1, {
+            type: 'line',
+            data: voltageData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: { display: true, text: 'Voltage (V)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Time' }
+                    }
+                },
+                plugins: {
+                    title: { display: true, text: 'Channel Voltages' }
+                }
+            }
+        });
+        
+        const ctx2 = document.getElementById('currentChart').getContext('2d');
+        currentChart = new Chart(ctx2, {
+            type: 'line',
+            data: currentData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: { display: true, text: 'Current (A)' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Time' }
+                    }
+                },
+                plugins: {
+                    title: { display: true, text: 'Channel Currents' }
+                }
+            }
+        });
+    }
+    
+    // SignalR connection
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/deviceHub")
+        .build();
+
+    connection.start().then(function () {
+        console.log("SignalR Connected for monitoring");
+        connection.invoke("JoinDeviceGroup", deviceId);
+        connection.invoke("RequestLatestData", deviceId);
+        initCharts();
+    }).catch(function (err) {
+        console.error(err.toString());
+    });
+
+    connection.on("ReceiveDeviceData", function (deviceData) {
+        updateCharts(deviceData);
+        updateChannelStatus(deviceData.channels);
+        updateAlarms(deviceData.alarmData);
+    });
+    
+    function updateCharts(deviceData) {
+        const timestamp = new Date(deviceData.timestamp).toLocaleTimeString();
+        
+        // Update voltage chart
+        if (voltageData.labels.length > 50) {
+            voltageData.labels = voltageData.labels.slice(-49);
+            voltageData.datasets.forEach(dataset => {
+                dataset.data = dataset.data.slice(-49);
+            });
+        }
+        
+        voltageData.labels.push(timestamp);
+        
+        deviceData.channels.forEach((channel, index) => {
+            if (!voltageData.datasets[index]) {
+                voltageData.datasets[index] = {
+                    label: `Ch ${channel.channelNumber}`,
+                    data: [],
+                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
+                    fill: false
+                };
+            }
+            voltageData.datasets[index].data.push(channel.voltage);
+        });
+        
+        // Update current chart similarly
+        currentData.labels = [...voltageData.labels];
+        deviceData.channels.forEach((channel, index) => {
+            if (!currentData.datasets[index]) {
+                currentData.datasets[index] = {
+                    label: `Ch ${channel.channelNumber}`,
+                    data: [],
+                    borderColor: `hsl(${index * 30}, 70%, 50%)`,
+                    fill: false
+                };
+            }
+            currentData.datasets[index].data.push(channel.current);
+        });
+        
+        voltageChart.update('none');
+        currentChart.update('none');
+    }
+    
+    function updateChannelStatus(channels) {
+        const statusHtml = channels.map(ch => `
+            <div class="mb-2">
+                <span class="badge status-${ch.status.toLowerCase()}">${ch.status}</span>
+                <strong>Ch ${ch.channelNumber}</strong>
+                <div class="small text-muted">
+                    V: <span class="data-value">${ch.voltage.toFixed(3)}</span>V
+                    I: <span class="data-value">${ch.current.toFixed(3)}</span>A
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('channelStatus').innerHTML = statusHtml || '<p class="text-muted">No channels</p>';
+    }
+    
+    function updateAlarms(alarms) {
+        if (!alarms || alarms.length === 0) {
+            document.getElementById('alarmsList').innerHTML = '<p class="text-muted">No alarms</p>';
+            return;
+        }
+        
+        const alarmsHtml = alarms.map(alarm => `
+            <div class="alert alert-sm alarm-${alarm.severity.toLowerCase()}" role="alert">
+                <strong>${alarm.name}</strong><br>
+                <small>${alarm.description}</small>
+            </div>
+        `).join('');
+        
+        document.getElementById('alarmsList').innerHTML = alarmsHtml;
+    }
+    
+    // Update every 100ms
+    setInterval(() => {
+        connection.invoke("RequestLatestData", deviceId);
+    }, 100);
+</script>
+}

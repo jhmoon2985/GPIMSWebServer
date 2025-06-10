@@ -1,0 +1,76 @@
+﻿@model List<string>
+@{
+    ViewData["Title"] = "Device Overview";
+}
+
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-tachometer-alt"></i> Device Overview</h1>
+        <p class="text-muted">Monitor all connected devices in real-time</p>
+    </div>
+</div>
+
+<div class="row" id="deviceGrid">
+    @if (Model.Any())
+    {
+        @foreach (var deviceId in Model)
+        {
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card device-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-microchip"></i> @deviceId
+                        </h5>
+                        <p class="card-text">
+                            <span class="badge bg-success">Online</span>
+                            <span class="text-muted">Last update: <span id="lastUpdate-@deviceId">--</span></span>
+                        </p>
+                        <div class="mt-3">
+                            <a href="/Home/Device/@deviceId" class="btn btn-primary btn-sm">
+                                <i class="fas fa-eye"></i> View Details
+                            </a>
+                            <a href="/Home/Monitoring/@deviceId" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-chart-line"></i> Real-time
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No devices connected. Waiting for device data...
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script>
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/deviceHub")
+        .build();
+
+    connection.start().then(function () {
+        console.log("SignalR Connected");
+        
+        // Join all device groups
+        @foreach (var deviceId in Model)
+        {
+            <text>connection.invoke("JoinDeviceGroup", "@deviceId");</text>
+        }
+    }).catch(function (err) {
+        console.error(err.toString());
+    });
+
+    connection.on("ReceiveDeviceData", function (deviceData) {
+        const lastUpdateElement = document.getElementById(`lastUpdate-${deviceData.deviceId}`);
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = new Date(deviceData.timestamp).toLocaleTimeString();
+        }
+    });
+</script>
+}

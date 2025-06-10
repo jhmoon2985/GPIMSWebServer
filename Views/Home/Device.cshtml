@@ -1,0 +1,131 @@
+@model GPIMSWebServer.Models.DeviceData
+@{
+    ViewData["Title"] = "Device Details";
+    var deviceId = ViewBag.DeviceId as string;
+}
+
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-microchip"></i> Device Details - @deviceId</h1>
+        <a href="/" class="btn btn-outline-secondary mb-3">
+            <i class="fas fa-arrow-left"></i> Back to Overview
+        </a>
+        <a href="/Home/Monitoring/@deviceId" class="btn btn-primary mb-3">
+            <i class="fas fa-chart-line"></i> Real-time Monitoring
+        </a>
+    </div>
+</div>
+
+@if (Model != null)
+{
+    <div class="row">
+        <!-- Channel Data -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (@Model.Channels.Count channels)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Ch#</th>
+                                    <th>Status</th>
+                                    <th>Mode</th>
+                                    <th>Voltage</th>
+                                    <th>Current</th>
+                                    <th>Power</th>
+                                    <th>Capacity</th>
+                                    <th>Temp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var channel in Model.Channels.Take(20))
+                                {
+                                    <tr>
+                                        <td><strong>@channel.ChannelNumber</strong></td>
+                                        <td><span class="badge status-@channel.Status.ToString().ToLower()">@channel.Status</span></td>
+                                        <td><span class="badge bg-secondary">@channel.Mode</span></td>
+                                        <td class="data-value">@channel.Voltage.ToString("F3") V</td>
+                                        <td class="data-value">@channel.Current.ToString("F3") A</td>
+                                        <td class="data-value">@channel.Power.ToString("F2") W</td>
+                                        <td class="data-value">@channel.Capacity.ToString("F2") Ah</td>
+                                        <td class="data-value">@channel.ChamberTemperature.ToString("F1") °C</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (Model.Channels.Count > 20)
+                    {
+                        <p class="text-muted">Showing first 20 channels of @Model.Channels.Count total channels.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Auxiliary Data & Alarms -->
+        <div class="col-lg-4">
+            @if (Model.AuxData.Any())
+            {
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
+                    </div>
+                    <div class="card-body">
+                        @foreach (var aux in Model.AuxData.Take(10))
+                        {
+                            <div class="mb-2">
+                                <strong>@aux.SensorName</strong>
+                                <div class="small">
+                                    Value: <span class="data-value">@aux.Value.ToString("F2")</span>
+                                    <br>
+                                    Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.AlarmData.Any())
+            {
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
+                    </div>
+                    <div class="card-body">
+                        @foreach (var alarm in Model.AlarmData)
+                        {
+                            <div class="alert alert-sm alarm-@alarm.Severity.ToString().ToLower()" role="alert">
+                                <strong>@alarm.Name</strong><br>
+                                <small>@alarm.Description</small>
+                                <div class="small text-muted">@alarm.Timestamp.ToString("HH:mm:ss")</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-info-circle"></i> Device Info</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Device ID:</strong> @Model.DeviceId</p>
+                    <p><strong>Last Update:</strong> @Model.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</p>
+                    <p><strong>Active Channels:</strong> @Model.Channels.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle)</p>
+                    <p><strong>CAN Data Points:</strong> @Model.CANData.Count</p>
+                    <p><strong>LIN Data Points:</strong> @Model.LINData.Count</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i> No data available for device @deviceId
+    </div>
+}
