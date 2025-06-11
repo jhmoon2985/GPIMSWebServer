@@ -28,91 +28,46 @@
 </div>
 
 <div id="deviceContent">
-    <!-- 1번째 줄: Device Summary와 Alarms (같은 높이로 고정) -->
-    <div class="row mb-4">
-        <!-- Device Summary -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h6><i class="fas fa-info-circle"></i> Device Summary</h6>
-                </div>
-                <div class="card-body" id="deviceSummary">
-                    <div class="row text-center">
-                        <div class="col-6">
-                            <div class="border-end">
-                                <div class="fs-4 fw-bold text-primary" id="activeChannelsCount">
-                                    @(Model?.Channels?.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle) ?? 0)
-                                </div>
-                                <small class="text-muted">Active Channels</small>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="fs-4 fw-bold text-success" id="totalPower">
-                                @(Model?.Channels?.Sum(c => c.Power).ToString("F1") ?? "0.0")
-                            </div>
-                            <small class="text-muted">Total Power (W)</small>
-                        </div>
-                    </div>
-                    <hr>
-                    <div class="small">
-                        <div class="d-flex justify-content-between">
-                            <span>Device ID:</span>
-                            <span class="fw-bold">@(Model?.DeviceId ?? deviceId)</span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>CAN Data Points:</span>
-                            <span class="fw-bold" id="canDataCount">@(Model?.CANData?.Count ?? 0)</span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>LIN Data Points:</span>
-                            <span class="fw-bold" id="linDataCount">@(Model?.LINData?.Count ?? 0)</span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Aux Sensors:</span>
-                            <span class="fw-bold" id="auxDataCount">@(Model?.AuxData?.Count ?? 0)</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Alarms -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
-                </div>
-                <div class="card-body" id="alarmsContent" style="max-height: 300px; overflow-y: auto;">
-                    @if (Model?.AlarmData?.Any() == true)
-                    {
-                        @foreach (var alarm in Model.AlarmData)
-                        {
-                            <div class="alert alert-sm alarm-@alarm.Severity.ToString().ToLower()" role="alert">
-                                <strong>@alarm.Name</strong><br>
-                                <small>@alarm.Description</small>
-                                <div class="small text-muted">@alarm.Timestamp.ToString("HH:mm:ss")</div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-muted">No active alarms</p>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2번째 줄: Channel Data와 CAN/LIN/AUX 데이터 -->
+    <!-- Channel Data와 Secondary Data -->
     <div class="row mb-4">
         <!-- Channel Data -->
-        <div class="col-lg-8">
+        <div class="col-lg-10">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
-                    <div>
-                        <small class="text-muted">Last update: <span id="lastUpdateTime">@(Model?.Timestamp.ToString("HH:mm:ss") ?? "--:--:--")</span></small>
-                        <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
+                        <div class="d-flex align-items-center">
+                            <!-- Device Summary Stats -->
+                            <div class="me-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3 text-center">
+                                        <div class="fs-6 fw-bold text-primary" id="activeChannelsCount">
+                                            @(Model?.Channels?.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle) ?? 0)
+                                        </div>
+                                        <small class="text-muted">Active</small>
+                                    </div>
+                                    <div class="me-3 text-center">
+                                        <div class="fs-6 fw-bold text-success" id="totalPower">
+                                            @(Model?.Channels?.Sum(c => c.Power).ToString("F1") ?? "0.0")W
+                                        </div>
+                                        <small class="text-muted">Total Power</small>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="small">
+                                            CAN: <span class="fw-bold" id="canDataCount">@(Model?.CANData?.Count ?? 0)</span> |
+                                            LIN: <span class="fw-bold" id="linDataCount">@(Model?.LINData?.Count ?? 0)</span> |
+                                            AUX: <span class="fw-bold" id="auxDataCount">@(Model?.AuxData?.Count ?? 0)</span>
+                                        </div>
+                                        <small class="text-muted">Data Points</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Update Info -->
+                            <div>
+                                <small class="text-muted">Last update: <span id="lastUpdateTime">@(Model?.Timestamp.ToString("HH:mm:ss") ?? "--:--:--")</span></small>
+                                <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -144,11 +99,11 @@
                                     <th>Ch#</th>
                                     <th>Status</th>
                                     <th>Mode</th>
-                                    <th>Voltage</th>
-                                    <th>Current</th>
-                                    <th>Power</th>
-                                    <th>Capacity</th>
-                                    <th>Temp</th>
+                                    <th>Voltage (V)</th>
+                                    <th>Current (A)</th>
+                                    <th>Power (W)</th>
+                                    <th>Capacity (Ah)</th>
+                                    <th>Temp (°C)</th>
                                     <th>Cycle</th>
                                     <th>Step</th>
                                 </tr>
@@ -162,11 +117,11 @@
                                             <td><strong>@channel.ChannelNumber</strong></td>
                                             <td><span class="badge status-@channel.Status.ToString().ToLower()">@channel.Status</span></td>
                                             <td><span class="badge bg-secondary">@channel.Mode</span></td>
-                                            <td class="data-value">@channel.Voltage.ToString("F3") V</td>
-                                            <td class="data-value">@channel.Current.ToString("F3") A</td>
-                                            <td class="data-value">@channel.Power.ToString("F2") W</td>
-                                            <td class="data-value">@channel.Capacity.ToString("F2") Ah</td>
-                                            <td class="data-value">@channel.ChamberTemperature.ToString("F1") °C</td>
+                                            <td class="data-value">@channel.Voltage.ToString("F3")</td>
+                                            <td class="data-value">@channel.Current.ToString("F3")</td>
+                                            <td class="data-value">@channel.Power.ToString("F2")</td>
+                                            <td class="data-value">@channel.Capacity.ToString("F2")</td>
+                                            <td class="data-value">@channel.ChamberTemperature.ToString("F1")</td>
                                             <td class="data-value">@channel.CycleNo</td>
                                             <td class="data-value">@channel.StepNo</td>
                                         </tr>
@@ -179,8 +134,32 @@
             </div>
         </div>
 
-        <!-- Secondary Data Column (CAN, LIN, AUX 세로 배치) -->
-        <div class="col-lg-4">
+        <!-- Secondary Data Column (Alarms, CAN, LIN, AUX 세로 배치) -->
+        <div class="col-lg-2">
+            <!-- Alarms -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
+                </div>
+                <div class="card-body" id="alarmsContent" style="max-height: 200px; overflow-y: auto;">
+                    @if (Model?.AlarmData?.Any() == true)
+                    {
+                        @foreach (var alarm in Model.AlarmData)
+                        {
+                            <div class="alert alert-sm alarm-@alarm.Severity.ToString().ToLower()" role="alert">
+                                <strong>@alarm.Name</strong><br>
+                                <small>@alarm.Description</small>
+                                <div class="small text-muted">@alarm.Timestamp.ToString("HH:mm:ss")</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No active alarms</p>
+                    }
+                </div>
+            </div>
+
             <!-- CAN Data -->
             <div class="card mb-3">
                 <div class="card-header">
@@ -247,13 +226,13 @@
                     {
                         @foreach (var aux in Model.AuxData.Take(10))
                         {
-                            <div class="mb-2">
-                                <div class="d-flex justify-content-between">
+                            <div class="mb-2 p-2 border rounded">
+                                <div class="d-flex justify-content-between align-items-center">
                                     <strong class="small">@aux.SensorName</strong>
                                     <span class="data-value">@aux.Value.ToString("F2")</span>
                                 </div>
                                 <div class="small text-muted">
-                                    Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
+                                    Sensor ID: @aux.SensorId | Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
                                 </div>
                             </div>
                         }
@@ -269,7 +248,7 @@
 
     <!-- 3번째 줄: Chart Section -->
     <div class="row">
-        <div class="col-12">
+        <div class="col-10">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5><i class="fas fa-chart-line"></i> Real-time Voltage & Current Chart</h5>
@@ -638,11 +617,11 @@
                     <td><strong>${channelNumber}</strong></td>
                     <td><span class="badge ${statusClass}">${status}</span></td>
                     <td><span class="badge bg-secondary">${mode}</span></td>
-                    <td class="data-value">${parseFloat(voltage).toFixed(3)} V</td>
-                    <td class="data-value">${parseFloat(current).toFixed(3)} A</td>
-                    <td class="data-value">${parseFloat(power).toFixed(2)} W</td>
-                    <td class="data-value">${parseFloat(capacity).toFixed(2)} Ah</td>
-                    <td class="data-value">${parseFloat(temperature).toFixed(1)} °C</td>
+                    <td class="data-value">${parseFloat(voltage).toFixed(3)}</td>
+                    <td class="data-value">${parseFloat(current).toFixed(3)}</td>
+                    <td class="data-value">${parseFloat(power).toFixed(2)}</td>
+                    <td class="data-value">${parseFloat(capacity).toFixed(2)}</td>
+                    <td class="data-value">${parseFloat(temperature).toFixed(1)}</td>
                     <td class="data-value">${cycleNo}</td>
                     <td class="data-value">${stepNo}</td>
                 </tr>
@@ -737,7 +716,7 @@
         
         const powerElement = document.getElementById('totalPower');
         if (powerElement) {
-            powerElement.textContent = totalPower.toFixed(1);
+            powerElement.textContent = totalPower.toFixed(1) + 'W';
         }
     }
 
@@ -820,17 +799,18 @@
         auxData.slice(0, 20).forEach(function(aux) {
             const sensorName = aux.sensorName || aux.SensorName || 'Unknown Sensor';
             const value = aux.value || aux.Value || 0;
+            const sensorId = aux.sensorId || aux.SensorId || 0;
             const safeLowerLimit = aux.safeLowerLimit || aux.SafeLowerLimit || 0;
             const safeUpperLimit = aux.safeUpperLimit || aux.SafeUpperLimit || 0;
             
             html += `
-                <div class="mb-2">
-                    <div class="d-flex justify-content-between">
+                <div class="mb-2 p-2 border rounded">
+                    <div class="d-flex justify-content-between align-items-center">
                         <strong class="small">${sensorName}</strong>
                         <span class="data-value">${parseFloat(value).toFixed(2)}</span>
                     </div>
                     <div class="small text-muted">
-                        Range: ${parseFloat(safeLowerLimit).toFixed(1)} - ${parseFloat(safeUpperLimit).toFixed(1)}
+                        Sensor ID: ${sensorId} | Range: ${parseFloat(safeLowerLimit).toFixed(1)} - ${parseFloat(safeUpperLimit).toFixed(1)}
                     </div>
                 </div>
             `;
