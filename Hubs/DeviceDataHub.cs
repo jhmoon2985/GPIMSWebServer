@@ -23,8 +23,9 @@ namespace GPIMSWebServer.Hubs
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
                 _logger.LogInformation($"Client {Context.ConnectionId} joined group Device_{deviceId}");
                 
-                // 그룹 참가 즉시 최신 데이터 전송
+                // 그룹 참가 즉시 최신 데이터 및 상태 전송
                 await RequestLatestData(deviceId);
+                await SendDeviceStatus(deviceId);
             }
             catch (Exception ex)
             {
@@ -71,9 +72,16 @@ namespace GPIMSWebServer.Hubs
         {
             try
             {
-                var activeDevices = _dataService.GetActiveDevices();
-                await Clients.Caller.SendAsync("ReceiveDeviceList", activeDevices);
-                _logger.LogDebug($"Device list sent to caller: {string.Join(", ", activeDevices)}");
+                var allDevices = _dataService.GetAllKnownDevices();
+                var deviceListWithStatus = allDevices.Select(deviceId => new
+                {
+                    DeviceId = deviceId,
+                    IsOnline = _dataService.IsDeviceOnline(deviceId),
+                    LastHeartbeat = _dataService.GetLastHeartbeat(deviceId)
+                }).ToList();
+
+                await Clients.Caller.SendAsync("ReceiveDeviceList", deviceListWithStatus);
+                _logger.LogDebug($"Device list with status sent to caller: {allDevices.Count} devices");
             }
             catch (Exception ex)
             {
@@ -95,6 +103,50 @@ namespace GPIMSWebServer.Hubs
             }
         }
 
+        // 새로 추가: 특정 디바이스 상태 전송
+        public async Task SendDeviceStatus(string deviceId)
+        {
+            try
+            {
+                var isOnline = _dataService.IsDeviceOnline(deviceId);
+                var lastHeartbeat = _dataService.GetLastHeartbeat(deviceId);
+                var latestData = _dataService.GetLatestDeviceData(deviceId);
+
+                var deviceStatus = new
+                {
+                    DeviceId = deviceId,
+                    IsOnline = isOnline,
+                    LastHeartbeat = lastHeartbeat,
+                    LastUpdate = latestData?.Timestamp,
+                    ChannelCount = latestData?.Channels?.Count ?? 0,
+                    ActiveChannels = latestData?.Channels?.Count(c => c.Status != ChannelStatus.Idle) ?? 0,
+                    TotalPower = latestData?.Channels?.Sum(c => c.Power) ?? 0,
+                    HasAlarms = latestData?.AlarmData?.Any() ?? false
+                };
+
+                await Clients.Caller.SendAsync("ReceiveDeviceStatus", deviceStatus);
+                _logger.LogDebug($"Device status sent for {deviceId}: {(isOnline ? "Online" : "Offline")}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error sending device status for {deviceId}");
+            }
+        }
+
+        // 새로 추가: 디바이스를 수동으로 오프라인으로 표시
+        public async Task MarkDeviceOffline(string deviceId, string reason = "Manual disconnect")
+        {
+            try
+            {
+                await _dataService.MarkDeviceOfflineAsync(deviceId, reason);
+                _logger.LogInformation($"Device {deviceId} manually marked offline by connection {Context.ConnectionId}. Reason: {reason}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error manually marking device {deviceId} offline");
+            }
+        }
+
         // 새로 추가: 여러 디바이스 그룹에 한번에 참가
         public async Task JoinMultipleDeviceGroups(List<string> deviceIds)
         {
@@ -106,7 +158,7 @@ namespace GPIMSWebServer.Hubs
                     _logger.LogInformation($"Client {Context.ConnectionId} joined group Device_{deviceId}");
                 }
                 
-                // 모든 디바이스의 최신 데이터 전송
+                // 모든 디바이스의 최신 데이터 및 상태 전송
                 foreach (var deviceId in deviceIds)
                 {
                     var latestData = _dataService.GetLatestDeviceData(deviceId);
@@ -114,6 +166,7 @@ namespace GPIMSWebServer.Hubs
                     {
                         await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
                     }
+                    await SendDeviceStatus(deviceId);
                 }
                 
                 _logger.LogInformation($"Client {Context.ConnectionId} joined {deviceIds.Count} device groups");
@@ -129,28 +182,7 @@ namespace GPIMSWebServer.Hubs
         {
             try
             {
-                var activeDevices = _dataService.GetActiveDevices();
-                var deviceStatusList = new List<object>();
-                
-                foreach (var deviceId in activeDevices)
-                {
-                    var latestData = _dataService.GetLatestDeviceData(deviceId);
-                    if (latestData != null)
-                    {
-                        var deviceStatus = new
-                        {
-                            DeviceId = deviceId,
-                            IsOnline = true,
-                            LastUpdate = latestData.Timestamp,
-                            ChannelCount = latestData.Channels.Count,
-                            ActiveChannels = latestData.Channels.Count(c => c.Status != ChannelStatus.Idle),
-                            TotalPower = latestData.Channels.Sum(c => c.Power),
-                            HasAlarms = latestData.AlarmData.Any()
-                        };
-                        deviceStatusList.Add(deviceStatus);
-                    }
-                }
-                
+                var deviceStatusList = _dataService.GetDeviceStatusSummary();
                 await Clients.All.SendAsync("ReceiveAllDevicesStatus", deviceStatusList);
                 _logger.LogDebug($"Broadcasted status for {deviceStatusList.Count} devices");
             }

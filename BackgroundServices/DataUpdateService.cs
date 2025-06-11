@@ -10,7 +10,9 @@ namespace GPIMSWebServer.BackgroundServices
         private readonly ILogger<DataUpdateService> _logger;
         private readonly TimeSpan _updateInterval = TimeSpan.FromMilliseconds(500); // 0.5초마다 체크
         private readonly TimeSpan _statusBroadcastInterval = TimeSpan.FromSeconds(10); // 10초마다 전체 상태 브로드캐스트
+        private readonly TimeSpan _timeoutCheckInterval = TimeSpan.FromSeconds(5); // 5초마다 타임아웃 체크
         private DateTime _lastStatusBroadcast = DateTime.MinValue;
+        private DateTime _lastTimeoutCheck = DateTime.MinValue;
 
         public DataUpdateService(IServiceProvider serviceProvider, ILogger<DataUpdateService> logger)
         {
@@ -30,7 +32,16 @@ namespace GPIMSWebServer.BackgroundServices
                     var dataService = scope.ServiceProvider.GetRequiredService<IDataService>();
                     var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<DeviceDataHub>>();
                     
-                    // 활성 디바이스 목록 가져오기
+                    var now = DateTime.UtcNow;
+
+                    // 디바이스 타임아웃 체크 (5초마다)
+                    if (now - _lastTimeoutCheck > _timeoutCheckInterval)
+                    {
+                        await dataService.CheckDeviceTimeoutsAsync();
+                        _lastTimeoutCheck = now;
+                    }
+                    
+                    // 활성 디바이스 목록 가져오기 (온라인 상태인 디바이스만)
                     var activeDevices = dataService.GetActiveDevices();
                     
                     if (activeDevices.Any())
@@ -55,11 +66,11 @@ namespace GPIMSWebServer.BackgroundServices
                         _logger.LogDebug("No active devices found");
                     }
                     
-                    // 주기적으로 전체 디바이스 상태 브로드캐스트
-                    if (DateTime.UtcNow - _lastStatusBroadcast > _statusBroadcastInterval)
+                    // 주기적으로 전체 디바이스 상태 브로드캐스트 (10초마다)
+                    if (now - _lastStatusBroadcast > _statusBroadcastInterval)
                     {
-                        await BroadcastDeviceStatusSummary(hubContext, dataService, activeDevices);
-                        _lastStatusBroadcast = DateTime.UtcNow;
+                        await BroadcastDeviceStatusSummary(hubContext, dataService);
+                        _lastStatusBroadcast = now;
                     }
                     
                     // 연결 상태 체크 및 정리
@@ -82,39 +93,20 @@ namespace GPIMSWebServer.BackgroundServices
             _logger.LogInformation("Data Update Service stopped");
         }
 
-        private async Task BroadcastDeviceStatusSummary(IHubContext<DeviceDataHub> hubContext, IDataService dataService, List<string> activeDevices)
+        private async Task BroadcastDeviceStatusSummary(IHubContext<DeviceDataHub> hubContext, IDataService dataService)
         {
             try
             {
-                var deviceStatusList = new List<object>();
-                
-                foreach (var deviceId in activeDevices)
-                {
-                    var latestData = dataService.GetLatestDeviceData(deviceId);
-                    if (latestData != null)
-                    {
-                        var deviceStatus = new
-                        {
-                            DeviceId = deviceId,
-                            IsOnline = true,
-                            LastUpdate = latestData.Timestamp,
-                            ChannelCount = latestData.Channels.Count,
-                            ActiveChannels = latestData.Channels.Count(c => c.Status != GPIMSWebServer.Models.ChannelStatus.Idle),
-                            TotalPower = latestData.Channels.Sum(c => c.Power),
-                            CANDataCount = latestData.CANData.Count,
-                            LINDataCount = latestData.LINData.Count,
-                            AuxDataCount = latestData.AuxData.Count,
-                            AlarmCount = latestData.AlarmData.Count,
-                            HasCriticalAlarms = latestData.AlarmData.Any(a => a.Severity == GPIMSWebServer.Models.AlarmSeverity.Critical)
-                        };
-                        deviceStatusList.Add(deviceStatus);
-                    }
-                }
+                // 모든 알려진 디바이스의 상태 요약 가져오기
+                var deviceStatusList = dataService.GetDeviceStatusSummary();
                 
                 // 전체 클라이언트에게 디바이스 상태 요약 브로드캐스트
                 await hubContext.Clients.All.SendAsync("ReceiveDeviceStatusSummary", deviceStatusList);
                 
-                _logger.LogDebug($"Broadcasted status summary for {deviceStatusList.Count} devices");
+                var onlineCount = deviceStatusList.Count(d => ((dynamic)d).IsOnline);
+                var offlineCount = deviceStatusList.Count - onlineCount;
+                
+                _logger.LogDebug($"Broadcasted status summary: {onlineCount} online, {offlineCount} offline devices");
             }
             catch (Exception ex)
             {
@@ -128,15 +120,18 @@ namespace GPIMSWebServer.BackgroundServices
             {
                 // 여기서 주기적인 유지보수 작업을 수행할 수 있습니다
                 var activeDevices = dataService.GetActiveDevices();
+                var allDevices = dataService.GetAllKnownDevices();
+                var offlineDevices = allDevices.Except(activeDevices).ToList();
                 
                 // 활성 디바이스 수에 따른 로그 레벨 조정
-                if (activeDevices.Count > 0)
+                if (activeDevices.Count > 0 || offlineDevices.Count > 0)
                 {
-                    _logger.LogDebug($"Currently tracking {activeDevices.Count} active devices: {string.Join(", ", activeDevices)}");
+                    _logger.LogDebug($"Device status: {activeDevices.Count} online ({string.Join(", ", activeDevices)}), " +
+                                    $"{offlineDevices.Count} offline ({string.Join(", ", offlineDevices)})");
                 }
                 else
                 {
-                    _logger.LogInformation("No active devices currently connected");
+                    _logger.LogInformation("No devices currently known to the system");
                 }
                 
                 // 메모리 사용량 체크 (선택적)
