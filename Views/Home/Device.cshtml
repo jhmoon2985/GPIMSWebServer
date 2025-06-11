@@ -35,7 +35,8 @@
             <div class="card">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
+                        @* <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5> *@
+                        <h5><i class="fas fa-battery-three-quarters"></i> Channel Data </h5>
                         <div class="d-flex align-items-center">
                             <!-- Device Summary Stats -->
                             <div class="me-4">
@@ -46,19 +47,11 @@
                                         </div>
                                         <small class="text-muted">Active Channels</small>
                                     </div>
-                                    <div class="me-3 text-center">
+                                    <div class="text-center">
                                         <div class="fs-6 fw-bold text-success" id="totalPower">
                                             @(Model?.Channels?.Sum(c => c.Power).ToString("F1") ?? "0.0")W
                                         </div>
                                         <small class="text-muted">Total Power</small>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="small">
-                                            CAN: <span class="fw-bold" id="canDataCount">@(Model?.CANData?.Count ?? 0)</span> |
-                                            LIN: <span class="fw-bold" id="linDataCount">@(Model?.LINData?.Count ?? 0)</span> |
-                                            AUX: <span class="fw-bold" id="auxDataCount">@(Model?.AuxData?.Count ?? 0)</span>
-                                        </div>
-                                        <small class="text-muted">Data Points</small>
                                     </div>
                                 </div>
                             </div>
@@ -187,8 +180,9 @@
 
             <!-- CAN Data -->
             <div class="card mb-3">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h6><i class="fas fa-network-wired"></i> CAN Data</h6>
+                    <span class="badge bg-secondary" id="canDataCount">@(Model?.CANData?.Count ?? 0)</span>
                 </div>
                 <div class="card-body" id="canDataContent" style="max-height: 200px; overflow-y: auto;">
                     @if (Model?.CANData?.Any() == true)
@@ -215,8 +209,9 @@
 
             <!-- LIN Data -->
             <div class="card mb-3">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h6><i class="fas fa-broadcast-tower"></i> LIN Data</h6>
+                    <span class="badge bg-secondary" id="linDataCount">@(Model?.LINData?.Count ?? 0)</span>
                 </div>
                 <div class="card-body" id="linDataContent" style="max-height: 200px; overflow-y: auto;">
                     @if (Model?.LINData?.Any() == true)
@@ -243,8 +238,9 @@
 
             <!-- Auxiliary Data -->
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
+                    <span class="badge bg-secondary" id="auxDataCount">@(Model?.AuxData?.Count ?? 0)</span>
                 </div>
                 <div class="card-body" id="auxDataContent" style="max-height: 200px; overflow-y: auto;">
                     @if (Model?.AuxData?.Any() == true)
@@ -564,7 +560,7 @@
             const alarmData = deviceData.alarmData || deviceData.AlarmData || [];
             forceUpdateAlarms(alarmData);
 
-            // 데이터 카운트 업데이트
+            // 데이터 카운트 업데이트 (각 카드의 배지로 이동)
             forceUpdateDataCounts(deviceData);
 
             console.log("✅ UI force update completed");
@@ -845,6 +841,7 @@
     }
 
     function forceUpdateDataCounts(deviceData) {
+        // 각 카드 헤더의 배지 업데이트
         const canCount = document.getElementById('canDataCount');
         if (canCount) {
             const canData = deviceData.canData || deviceData.CANData || [];
