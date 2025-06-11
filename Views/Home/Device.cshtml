@@ -34,111 +34,9 @@
 
 <div id="deviceContent">
     <div class="row">
-        <!-- Chart Section -->
-        <div class="col-12">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5><i class="fas fa-chart-line"></i> Real-time Voltage & Current Chart</h5>
-                    <div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="showVoltageChart" checked>
-                            <label class="form-check-label" for="showVoltageChart">Voltage</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="showCurrentChart" checked>
-                            <label class="form-check-label" for="showCurrentChart">Current</label>
-                        </div>
-                        <button id="clearChartBtn" class="btn btn-sm btn-outline-danger ms-2">
-                            <i class="fas fa-trash"></i> Clear
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container" style="height: 400px;">
-                        <canvas id="voltageCurrentChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- Channel Data -->
-        <div class="col-lg-8">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
-                    <div>
-                        <small class="text-muted">Last update: <span id="lastUpdateTime">@(Model?.Timestamp.ToString("HH:mm:ss") ?? "--:--:--")</span></small>
-                        <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <label for="channelsPerPage" class="form-label">Channels per page:</label>
-                            <select id="channelsPerPage" class="form-select form-select-sm d-inline-block w-auto">
-                                <option value="20">20</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
-                                <option value="all">All</option>
-                            </select>
-                        </div>
-                        <div>
-                            <button id="prevPage" class="btn btn-sm btn-outline-secondary" disabled>
-                                <i class="fas fa-chevron-left"></i> Previous
-                            </button>
-                            <span id="pageInfo" class="mx-2">Page 1 of 1</span>
-                            <button id="nextPage" class="btn btn-sm btn-outline-secondary" disabled>
-                                Next <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                        <table class="table table-striped table-hover">
-                            <thead class="table-dark sticky-top">
-                                <tr>
-                                    <th>Ch#</th>
-                                    <th>Status</th>
-                                    <th>Mode</th>
-                                    <th>Voltage</th>
-                                    <th>Current</th>
-                                    <th>Power</th>
-                                    <th>Capacity</th>
-                                    <th>Temp</th>
-                                    <th>Cycle</th>
-                                    <th>Step</th>
-                                </tr>
-                            </thead>
-                            <tbody id="channelTableBody">
-                                @if (Model?.Channels != null)
-                                {
-                                    @foreach (var channel in Model.Channels.Take(20))
-                                    {
-                                        <tr data-channel="@channel.ChannelNumber">
-                                            <td><strong>@channel.ChannelNumber</strong></td>
-                                            <td><span class="badge status-@channel.Status.ToString().ToLower()">@channel.Status</span></td>
-                                            <td><span class="badge bg-secondary">@channel.Mode</span></td>
-                                            <td class="data-value">@channel.Voltage.ToString("F3") V</td>
-                                            <td class="data-value">@channel.Current.ToString("F3") A</td>
-                                            <td class="data-value">@channel.Power.ToString("F2") W</td>
-                                            <td class="data-value">@channel.Capacity.ToString("F2") Ah</td>
-                                            <td class="data-value">@channel.ChamberTemperature.ToString("F1") °C</td>
-                                            <td class="data-value">@channel.CycleNo</td>
-                                            <td class="data-value">@channel.StepNo</td>
-                                        </tr>
-                                    }
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Device Info -->
+        <!-- Left Column: Device Summary and Alarms -->
         <div class="col-lg-4">
+            <!-- Device Summary -->
             <div class="card mb-3">
                 <div class="card-header">
                     <h6><i class="fas fa-info-circle"></i> Device Summary</h6>
@@ -182,96 +80,12 @@
                 </div>
             </div>
 
-            <!-- CAN Data -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6><i class="fas fa-network-wired"></i> CAN Data</h6>
-                </div>
-                <div class="card-body" id="canDataContent" style="max-height: 300px; overflow-y: auto;">
-                    @if (Model?.CANData?.Any() == true)
-                    {
-                        @foreach (var can in Model.CANData.Take(20))
-                        {
-                            <div class="mb-2 p-2 border rounded">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <strong class="small">@can.Name</strong>
-                                    <span class="data-value">@can.Value.ToString("F2")</span>
-                                </div>
-                                <div class="small text-muted">
-                                    BMS ID: @can.BmsId | Range: @can.Min.ToString("F1") - @can.Max.ToString("F1")
-                                </div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-muted">No CAN data</p>
-                    }
-                </div>
-            </div>
-
-            <!-- LIN Data -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6><i class="fas fa-broadcast-tower"></i> LIN Data</h6>
-                </div>
-                <div class="card-body" id="linDataContent" style="max-height: 300px; overflow-y: auto;">
-                    @if (Model?.LINData?.Any() == true)
-                    {
-                        @foreach (var lin in Model.LINData.Take(20))
-                        {
-                            <div class="mb-2 p-2 border rounded">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <strong class="small">@lin.Name</strong>
-                                    <span class="data-value">@lin.Value.ToString("F2")</span>
-                                </div>
-                                <div class="small text-muted">
-                                    BMS ID: @lin.BmsId | Range: @lin.Min.ToString("F1") - @lin.Max.ToString("F1")
-                                </div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-muted">No LIN data</p>
-                    }
-                </div>
-            </div>
-
-            <!-- Auxiliary Data -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
-                </div>
-                <div class="card-body" id="auxDataContent" style="max-height: 300px; overflow-y: auto;">
-                    @if (Model?.AuxData?.Any() == true)
-                    {
-                        @foreach (var aux in Model.AuxData.Take(20))
-                        {
-                            <div class="mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <strong class="small">@aux.SensorName</strong>
-                                    <span class="data-value">@aux.Value.ToString("F2")</span>
-                                </div>
-                                <div class="small text-muted">
-                                    Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
-                                </div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <p class="text-muted">No auxiliary data</p>
-                    }
-                </div>
-            </div>
-
             <!-- Alarms -->
             <div class="card">
                 <div class="card-header">
                     <h6><i class="fas fa-exclamation-triangle"></i> Active Alarms</h6>
                 </div>
-                <div class="card-body" id="alarmsContent" style="max-height: 300px; overflow-y: auto;">
+                <div class="card-body" id="alarmsContent" style="max-height: 400px; overflow-y: auto;">
                     @if (Model?.AlarmData?.Any() == true)
                     {
                         @foreach (var alarm in Model.AlarmData)
@@ -287,6 +101,203 @@
                     {
                         <p class="text-muted">No active alarms</p>
                     }
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Channel Data and Secondary Data -->
+        <div class="col-lg-8">
+            <!-- Channel Data -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-battery-three-quarters"></i> Channel Data (<span id="channelCount">@(Model?.Channels?.Count ?? 0)</span> channels)</h5>
+                    <div>
+                        <small class="text-muted">Last update: <span id="lastUpdateTime">@(Model?.Timestamp.ToString("HH:mm:ss") ?? "--:--:--")</span></small>
+                        <span class="badge bg-secondary ms-2" id="updateCounter">0 updates</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <label for="channelsPerPage" class="form-label">Channels per page:</label>
+                            <select id="channelsPerPage" class="form-select form-select-sm d-inline-block w-auto">
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="prevPage" class="btn btn-sm btn-outline-secondary" disabled>
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <span id="pageInfo" class="mx-2">Page 1 of 1</span>
+                            <button id="nextPage" class="btn btn-sm btn-outline-secondary" disabled>
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Ch#</th>
+                                    <th>Status</th>
+                                    <th>Mode</th>
+                                    <th>Voltage</th>
+                                    <th>Current</th>
+                                    <th>Power</th>
+                                    <th>Capacity</th>
+                                    <th>Temp</th>
+                                    <th>Cycle</th>
+                                    <th>Step</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channelTableBody">
+                                @if (Model?.Channels != null)
+                                {
+                                    @foreach (var channel in Model.Channels.Take(20))
+                                    {
+                                        <tr data-channel="@channel.ChannelNumber">
+                                            <td><strong>@channel.ChannelNumber</strong></td>
+                                            <td><span class="badge status-@channel.Status.ToString().ToLower()">@channel.Status</span></td>
+                                            <td><span class="badge bg-secondary">@channel.Mode</span></td>
+                                            <td class="data-value">@channel.Voltage.ToString("F3") V</td>
+                                            <td class="data-value">@channel.Current.ToString("F3") A</td>
+                                            <td class="data-value">@channel.Power.ToString("F2") W</td>
+                                            <td class="data-value">@channel.Capacity.ToString("F2") Ah</td>
+                                            <td class="data-value">@channel.ChamberTemperature.ToString("F1") °C</td>
+                                            <td class="data-value">@channel.CycleNo</td>
+                                            <td class="data-value">@channel.StepNo</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secondary Data Row -->
+            <div class="row">
+                <!-- CAN Data -->
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6><i class="fas fa-network-wired"></i> CAN Data</h6>
+                        </div>
+                        <div class="card-body" id="canDataContent" style="max-height: 300px; overflow-y: auto;">
+                            @if (Model?.CANData?.Any() == true)
+                            {
+                                @foreach (var can in Model.CANData.Take(10))
+                                {
+                                    <div class="mb-2 p-2 border rounded">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <strong class="small">@can.Name</strong>
+                                            <span class="data-value">@can.Value.ToString("F2")</span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            BMS ID: @can.BmsId | Range: @can.Min.ToString("F1") - @can.Max.ToString("F1")
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <p class="text-muted">No CAN data</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIN Data -->
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6><i class="fas fa-broadcast-tower"></i> LIN Data</h6>
+                        </div>
+                        <div class="card-body" id="linDataContent" style="max-height: 300px; overflow-y: auto;">
+                            @if (Model?.LINData?.Any() == true)
+                            {
+                                @foreach (var lin in Model.LINData.Take(10))
+                                {
+                                    <div class="mb-2 p-2 border rounded">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <strong class="small">@lin.Name</strong>
+                                            <span class="data-value">@lin.Value.ToString("F2")</span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            BMS ID: @lin.BmsId | Range: @lin.Min.ToString("F1") - @lin.Max.ToString("F1")
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <p class="text-muted">No LIN data</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auxiliary Data -->
+                <div class="col-md-4">
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6><i class="fas fa-thermometer-half"></i> Auxiliary Data</h6>
+                        </div>
+                        <div class="card-body" id="auxDataContent" style="max-height: 300px; overflow-y: auto;">
+                            @if (Model?.AuxData?.Any() == true)
+                            {
+                                @foreach (var aux in Model.AuxData.Take(10))
+                                {
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between">
+                                            <strong class="small">@aux.SensorName</strong>
+                                            <span class="data-value">@aux.Value.ToString("F2")</span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            Range: @aux.SafeLowerLimit.ToString("F1") - @aux.SafeUpperLimit.ToString("F1")
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <p class="text-muted">No auxiliary data</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Section at Bottom -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-chart-line"></i> Real-time Voltage & Current Chart</h5>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showVoltageChart" checked>
+                            <label class="form-check-label" for="showVoltageChart">Voltage</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showCurrentChart" checked>
+                            <label class="form-check-label" for="showCurrentChart">Current</label>
+                        </div>
+                        <button id="clearChartBtn" class="btn btn-sm btn-outline-danger ms-2">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="voltageCurrentChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
