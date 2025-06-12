@@ -9,9 +9,9 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Entity Framework
+// Add Entity Framework - SQLite 사용
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add Authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -90,7 +90,7 @@ builder.Services.AddLogging(logging =>
 
 var app = builder.Build();
 
-// Ensure database is created and seeded with correct admin password
+// Ensure database is created and seeded with migrations
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -98,12 +98,12 @@ using (var scope = app.Services.CreateScope())
     
     try
     {
-        // Ensure database is created
-        context.Database.EnsureCreated();
-        app.Logger.LogInformation("Database ensured created successfully");
+        // 🔧 핵심 변경: EnsureCreated() → Migrate()
+        await context.Database.MigrateAsync();
+        app.Logger.LogInformation("Database migration completed successfully");
 
         // Check if admin user exists and fix password if necessary
-        var adminUser = context.Users.FirstOrDefault(u => u.Username == "admin");
+        var adminUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "admin");
         if (adminUser != null)
         {
             // Test if the current password works
@@ -116,7 +116,7 @@ using (var scope = app.Services.CreateScope())
                 // Update with correct hash
                 adminUser.PasswordHash = userService.HashPassword("admin123");
                 adminUser.UpdatedAt = DateTime.UtcNow;
-                context.SaveChanges();
+                await context.SaveChangesAsync();
                 
                 app.Logger.LogInformation("Admin password hash has been corrected");
             }
@@ -143,7 +143,7 @@ using (var scope = app.Services.CreateScope())
             };
             
             context.Users.Add(newAdmin);
-            context.SaveChanges();
+            await context.SaveChangesAsync();
             
             app.Logger.LogInformation("Default admin user created successfully");
         }
@@ -151,6 +151,12 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         app.Logger.LogError(ex, "Error during database initialization");
+        
+        // 개발 환경에서는 예외를 다시 throw하여 문제를 바로 확인할 수 있도록 함
+        if (app.Environment.IsDevelopment())
+        {
+            throw;
+        }
     }
 }
 

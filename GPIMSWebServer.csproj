@@ -7,16 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ASP.NET Core SignalR -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
+    
+    <!-- Swagger for API documentation -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     
-    <!-- Entity Framework Core packages -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
+    <!-- Entity Framework Core - SQLite -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.6" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.6" />
     
     <!-- Authentication and Security -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="2.2.0" />
@@ -24,3 +24,9 @@
   </ItemGroup>
 
 </Project>
+
+<!-- 
+Microsoft.Extensions.Logging 패키지들은 제거
+- ASP.NET Core에 기본 포함되어 있음
+- EF Core가 필요한 버전을 자동으로 가져옴
+-->

@@ -22,24 +22,8 @@ namespace GPIMSWebServer.Data
                     .HasConversion<string>();
             });
 
-            // Seed default admin user with correct BCrypt hash
-            // Password: "admin123"
-            var adminPasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123");
-            
-            modelBuilder.Entity<User>().HasData(
-                new User
-                {
-                    Id = 1,
-                    Username = "admin",
-                    PasswordHash = adminPasswordHash,
-                    Name = "System Administrator",
-                    Department = "IT",
-                    Role = UserRole.Admin,
-                    IsActive = true,
-                    CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                }
-            );
+            // 🔧 시드 데이터 제거 - Program.cs에서 처리하므로 불필요
+            // HasData는 마이그레이션과 충돌할 수 있으므로 제거
         }
     }
 }
