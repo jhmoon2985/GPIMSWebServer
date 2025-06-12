@@ -1,0 +1,462 @@
+@model List<GPIMSWebServer.Models.User>
+@{
+    ViewData["Title"] = "User Management";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-4"><i class="fas fa-users"></i> User Management</h1>
+                <p class="text-muted mb-0">Manage system users and their permissions</p>
+            </div>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add New User
+            </a>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- User Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">@Model.Count</h5>
+                        <p class="card-text">Total Users</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">@Model.Count(u => u.IsActive)</h5>
+                        <p class="card-text">Active Users</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">@Model.Count(u => u.Role == GPIMSWebServer.Models.UserRole.Admin)</h5>
+                        <p class="card-text">Administrators</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-secondary">@Model.Count(u => !u.IsActive)</h5>
+                        <p class="card-text">Inactive Users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Users List
+                        <span class="badge bg-secondary ms-2">@Model.Count users</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <!-- Filter buttons -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="userFilter" id="filterAll" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="filterAll">All</label>
+                            
+                            <input type="radio" class="btn-check" name="userFilter" id="filterActive" autocomplete="off">
+                            <label class="btn btn-outline-success" for="filterActive">Active</label>
+                            
+                            <input type="radio" class="btn-check" name="userFilter" id="filterInactive" autocomplete="off">
+                            <label class="btn btn-outline-danger" for="filterInactive">Inactive</label>
+                        </div>
+                        
+                        <!-- Search box -->
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <input type="text" class="form-control" placeholder="Search users..." id="searchUsers">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="usersTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th><i class="fas fa-user"></i> Username</th>
+                                    <th><i class="fas fa-id-card"></i> Full Name</th>
+                                    <th><i class="fas fa-building"></i> Department</th>
+                                    <th><i class="fas fa-user-tag"></i> Role</th>
+                                    <th><i class="fas fa-toggle-on"></i> Status</th>
+                                    <th><i class="fas fa-calendar"></i> Created</th>
+                                    <th><i class="fas fa-clock"></i> Updated</th>
+                                    <th><i class="fas fa-cogs"></i> Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in Model.OrderBy(u => u.Username))
+                                {
+                                    var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0";
+                                    var isCurrentUser = user.Id.ToString() == currentUserId;
+                                    
+                                    <tr class="user-row @(user.IsActive ? "" : "table-secondary")" 
+                                        data-status="@(user.IsActive ? "active" : "inactive")"
+                                        data-role="@user.Role.ToString().ToLower()"
+                                        data-search="@($"{user.Username} {user.Name} {user.Department} {user.Role}".ToLower())">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div>
+                                                    <strong>@user.Username</strong>
+                                                    @if (isCurrentUser)
+                                                    {
+                                                        <small class="badge bg-info ms-1">You</small>
+                                                    }
+                                                    @if (!user.IsActive)
+                                                    {
+                                                        <small class="text-muted d-block">(Inactive)</small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="fw-medium">@user.Name</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">@user.Department</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@GetRoleColor(user.Role) fs-6">
+                                                <i class="fas fa-@GetRoleIcon(user.Role)"></i>
+                                                @user.Role
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (user.IsActive)
+                                            {
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check"></i> Active
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-times"></i> Inactive
+                                                </span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                @user.CreatedAt.ToString("MMM dd, yyyy")
+                                                <div class="text-xs">@user.CreatedAt.ToString("HH:mm")</div>
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                @user.UpdatedAt.ToString("MMM dd, yyyy")
+                                                <div class="text-xs">@user.UpdatedAt.ToString("HH:mm")</div>
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a asp-action="Edit" asp-route-id="@user.Id" 
+                                                   class="btn btn-outline-primary btn-sm" 
+                                                   title="Edit User">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                @if (user.IsActive && !isCurrentUser)
+                                                {
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                            onclick="confirmDelete(@user.Id, '@user.Username')"
+                                                            title="Deactivate User">
+                                                        <i class="fas fa-user-slash"></i>
+                                                    </button>
+                                                }
+                                                else if (!user.IsActive)
+                                                {
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                                            title="User is already inactive">
+                                                        <i class="fas fa-ban"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                                            title="Cannot deactivate yourself">
+                                                        <i class="fas fa-lock"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No users found</h5>
+                        <p class="text-muted">Start by adding a new user to the system.</p>
+                        <a asp-action="Create" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Add First User
+                        </a>
+                    </div>
+                }
+            </div>
+            @if (Model.Any())
+            {
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <span id="visibleCount">@Model.Count</span> of @Model.Count users shown
+                        </small>
+                        <small class="text-muted">
+                            Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                        </small>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Role Information Guide -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Role Permissions Guide
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <div class="badge bg-danger mb-2 p-3">
+                                <i class="fas fa-user-shield fa-2x"></i>
+                            </div>
+                            <h6 class="fw-bold text-danger">Administrator</h6>
+                            <ul class="list-unstyled text-start small">
+                                <li><i class="fas fa-check text-success"></i> Full system access</li>
+                                <li><i class="fas fa-check text-success"></i> User management</li>
+                                <li><i class="fas fa-check text-success"></i> Device control</li>
+                                <li><i class="fas fa-check text-success"></i> System configuration</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <div class="badge bg-warning mb-2 p-3">
+                                <i class="fas fa-tools fa-2x"></i>
+                            </div>
+                            <h6 class="fw-bold text-warning">Maintenance</h6>
+                            <ul class="list-unstyled text-start small">
+                                <li><i class="fas fa-check text-success"></i> Device monitoring</li>
+                                <li><i class="fas fa-check text-success"></i> Device operations</li>
+                                <li><i class="fas fa-check text-success"></i> Maintenance tasks</li>
+                                <li><i class="fas fa-times text-danger"></i> User management</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center">
+                            <div class="badge bg-info mb-2 p-3">
+                                <i class="fas fa-eye fa-2x"></i>
+                            </div>
+                            <h6 class="fw-bold text-info">Operator</h6>
+                            <ul class="list-unstyled text-start small">
+                                <li><i class="fas fa-check text-success"></i> View device status</li>
+                                <li><i class="fas fa-check text-success"></i> Monitor data</li>
+                                <li><i class="fas fa-times text-danger"></i> Device control</li>
+                                <li><i class="fas fa-times text-danger"></i> User management</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    Confirm User Deactivation
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> This action will deactivate the user account.
+                </div>
+                <p>Are you sure you want to deactivate user <strong id="deleteUsername"></strong>?</p>
+                <ul class="small text-muted">
+                    <li>The user will immediately lose access to the system</li>
+                    <li>The user account can be reactivated later if needed</li>
+                    <li>User data and history will be preserved</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-user-slash"></i> Deactivate User
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetRoleColor(GPIMSWebServer.Models.UserRole role)
+    {
+        return role switch
+        {
+            GPIMSWebServer.Models.UserRole.Admin => "danger",
+            GPIMSWebServer.Models.UserRole.Maintenance => "warning", 
+            GPIMSWebServer.Models.UserRole.Operator => "info",
+            _ => "secondary"
+        };
+    }
+
+    private string GetRoleIcon(GPIMSWebServer.Models.UserRole role)
+    {
+        return role switch
+        {
+            GPIMSWebServer.Models.UserRole.Admin => "user-shield",  // 🔧 왕관에서 방패로 변경
+            GPIMSWebServer.Models.UserRole.Maintenance => "tools",
+            GPIMSWebServer.Models.UserRole.Operator => "eye",
+            _ => "user"
+        };
+    }
+}
+
+@section Scripts {
+<script>
+    function confirmDelete(userId, username) {
+        document.getElementById('deleteUsername').textContent = username;
+        document.getElementById('deleteForm').action = '@Url.Action("Delete")/' + userId;
+        
+        var modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+
+    // Search and filter functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchUsers');
+        const filterButtons = document.querySelectorAll('input[name="userFilter"]');
+        const userRows = document.querySelectorAll('.user-row');
+        const visibleCountElement = document.getElementById('visibleCount');
+
+        function updateVisibleCount() {
+            const visibleRows = document.querySelectorAll('.user-row:not([style*="display: none"])');
+            if (visibleCountElement) {
+                visibleCountElement.textContent = visibleRows.length;
+            }
+        }
+
+        function filterUsers() {
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const activeFilter = document.querySelector('input[name="userFilter"]:checked')?.id || 'filterAll';
+
+            userRows.forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                const status = row.getAttribute('data-status') || '';
+                
+                let showRow = true;
+
+                // Apply search filter
+                if (searchTerm && !searchData.includes(searchTerm)) {
+                    showRow = false;
+                }
+
+                // Apply status filter
+                if (activeFilter === 'filterActive' && status !== 'active') {
+                    showRow = false;
+                } else if (activeFilter === 'filterInactive' && status !== 'inactive') {
+                    showRow = false;
+                }
+
+                row.style.display = showRow ? '' : 'none';
+            });
+
+            updateVisibleCount();
+        }
+
+        // Event listeners
+        if (searchInput) {
+            searchInput.addEventListener('input', filterUsers);
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('change', filterUsers);
+        });
+
+        // Initial count
+        updateVisibleCount();
+
+        // Auto-dismiss alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(alert => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + F to focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchUsers');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        }
+        
+        // Ctrl/Cmd + N to add new user
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+            e.preventDefault();
+            window.location.href = '@Url.Action("Create")';
+        }
+    });
+
+    // Tooltips initialization
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+</script>
+}

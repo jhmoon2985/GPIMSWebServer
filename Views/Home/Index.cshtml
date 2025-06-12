@@ -1,11 +1,31 @@
 ﻿@model List<string>
 @{
     ViewData["Title"] = "Device Overview";
+    var userRole = ViewBag.UserRole as string ?? "Unknown";
+    var userName = ViewBag.UserName as string ?? "User";
 }
 
 <div class="row">
     <div class="col-12">
-        <h1 class="fs-4"><i class="fas fa-tachometer-alt"></i> Device Overview</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1 class="fs-4"><i class="fas fa-tachometer-alt"></i> Device Overview</h1>
+                <p class="text-muted mb-0">
+                    Welcome back, <strong>@userName</strong> | Role: 
+                    <span class="badge bg-@GetRoleBadgeColor()">@userRole</span>
+                </p>
+            </div>
+            
+            @if (User.IsInRole("Admin"))
+            {
+                <div>
+                    <a href="/User" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-users"></i> Manage Users
+                    </a>
+                </div>
+            }
+        </div>
+        
         <p class="text-muted">Monitor all connected devices in real-time</p>
         
         <!-- Connection Status -->
@@ -49,6 +69,29 @@
                 </div>
             </div>
         </div>
+
+        <!-- User Permission Notice -->
+        @if (userRole == "Operator")
+        {
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Operator Mode:</strong> You have view-only access to device monitoring.
+            </div>
+        }
+        else if (userRole == "Maintenance")
+        {
+            <div class="alert alert-warning">
+                <i class="fas fa-tools me-2"></i>
+                <strong>Maintenance Mode:</strong> You can monitor and perform maintenance operations on devices.
+            </div>
+        }
+        else if (userRole == "Admin")
+        {
+            <div class="alert alert-success">
+                <i class="fas fa-crown me-2"></i>
+                <strong>Administrator Mode:</strong> You have full access to all system functions including user management.
+            </div>
+        }
     </div>
 </div>
 
@@ -111,11 +154,26 @@
                             <a href="/Home/Monitoring/@deviceId" class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-chart-line"></i> Real-time
                             </a>
-                            <button class="btn btn-outline-danger btn-sm" onclick="markDeviceOffline('@deviceId')" 
-                                    id="offline-btn-@deviceId" style="display: none;">
-                                <i class="fas fa-power-off"></i> Mark Offline
-                            </button>
+                            
+                            @* Only show offline button for Maintenance and Admin users *@
+                            @if (userRole == "Admin" || userRole == "Maintenance")
+                            {
+                                <button class="btn btn-outline-danger btn-sm" onclick="markDeviceOffline('@deviceId')" 
+                                        id="offline-btn-@deviceId" style="display: none;">
+                                    <i class="fas fa-power-off"></i> Mark Offline
+                                </button>
+                            }
                         </div>
+                        
+                        @* Role-based action restrictions notice *@
+                        @if (userRole == "Operator")
+                        {
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-lock me-1"></i>View-only access
+                                </small>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -126,10 +184,68 @@
         <div class="col-12">
             <div class="alert alert-info" id="noDevicesAlert">
                 <i class="fas fa-info-circle"></i> No devices connected. Waiting for device data...
+                
+                @if (userRole == "Admin")
+                {
+                    <div class="mt-2">
+                        <small>As an administrator, you can manage device connections and user access.</small>
+                    </div>
+                }
+                else if (userRole == "Maintenance")
+                {
+                    <div class="mt-2">
+                        <small>Check device connections or contact an administrator if devices should be available.</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-2">
+                        <small>Contact maintenance or administrator if devices should be available.</small>
+                    </div>
+                }
             </div>
         </div>
     }
 </div>
+
+<!-- Session Info Footer -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="fas fa-user me-1"></i>
+                            Logged in as: <strong>@User.Identity?.Name</strong> 
+                            (@User.FindFirst("Department")?.Value)
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            Session expires after 8 hours of inactivity
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetRoleBadgeColor()
+    {
+        var role = ViewBag.UserRole as string;
+        return role switch
+        {
+            "Admin" => "danger",
+            "Maintenance" => "warning", 
+            "Operator" => "info",
+            _ => "secondary"
+        };
+    }
+}
 
 @section Scripts {
 <script>
@@ -137,6 +253,7 @@
     let isConnected = false;
     let knownDevices = new Set();
     let deviceStatuses = new Map(); // deviceId -> {isOnline, lastHeartbeat, etc.}
+    const userRole = '@userRole';
     
     function updateConnectionStatus(connected, message) {
         isConnected = connected;
@@ -271,9 +388,9 @@
             }
         }
         
-        // Show/hide offline button
+        // Show/hide offline button based on user role and device status
         const offlineBtn = document.getElementById(`offline-btn-${deviceId}`);
-        if (offlineBtn) {
+        if (offlineBtn && (userRole === 'Admin' || userRole === 'Maintenance')) {
             offlineBtn.style.display = isOnline ? 'inline-block' : 'none';
         }
         
@@ -327,6 +444,19 @@
     
     function addNewDeviceCard(deviceId) {
         const deviceGrid = document.getElementById('deviceGrid');
+        const offlineButtonHtml = (userRole === 'Admin' || userRole === 'Maintenance') ? 
+            `<button class="btn btn-outline-danger btn-sm" onclick="markDeviceOffline('${deviceId}')" 
+                     id="offline-btn-${deviceId}">
+                <i class="fas fa-power-off"></i> Mark Offline
+             </button>` : '';
+             
+        const roleNoticeHtml = userRole === 'Operator' ? 
+            `<div class="mt-2">
+                <small class="text-muted">
+                    <i class="fas fa-lock me-1"></i>View-only access
+                </small>
+             </div>` : '';
+             
         const newCardHtml = `
             <div class="col-md-6 col-lg-4 mb-3" id="device-card-${deviceId}">
                 <div class="card device-card h-100">
@@ -382,11 +512,9 @@
                             <a href="/Home/Monitoring/${deviceId}" class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-chart-line"></i> Real-time
                             </a>
-                            <button class="btn btn-outline-danger btn-sm" onclick="markDeviceOffline('${deviceId}')" 
-                                    id="offline-btn-${deviceId}">
-                                <i class="fas fa-power-off"></i> Mark Offline
-                            </button>
+                            ${offlineButtonHtml}
                         </div>
+                        ${roleNoticeHtml}
                     </div>
                 </div>
             </div>
@@ -395,8 +523,13 @@
         deviceGrid.insertAdjacentHTML('beforeend', newCardHtml);
     }
     
-    // Mark device offline manually
+    // Mark device offline manually (only for Admin/Maintenance)
     function markDeviceOffline(deviceId) {
+        if (userRole !== 'Admin' && userRole !== 'Maintenance') {
+            alert('You do not have permission to perform this action.');
+            return;
+        }
+        
         if (connection && isConnected) {
             connection.invoke("MarkDeviceOffline", deviceId, "Manual disconnect from UI");
         }
@@ -504,6 +637,7 @@
     // Initialize when page loads
     document.addEventListener('DOMContentLoaded', function() {
         console.log("🚀 Overview page loaded, initializing SignalR...");
+        console.log(`👤 User role: ${userRole}`);
         initSignalR();
         
         // Add existing devices to known devices set

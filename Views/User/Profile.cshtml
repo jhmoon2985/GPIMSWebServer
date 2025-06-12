@@ -1,0 +1,194 @@
+@model GPIMSWebServer.Models.UserViewModel
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<div class="row">
+    <div class="col-lg-8 col-xl-6 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="fs-4"><i class="fas fa-user-circle"></i> My Profile</h1>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Home
+            </a>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- Current Profile Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-id-card"></i> Current Profile Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Username</label>
+                            <div class="fw-bold">@Model.Username</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Role</label>
+                            <div>
+                                <span class="badge bg-@GetRoleBadgeColor(Model.Role) fs-6">
+                                    @Model.Role
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Full Name</label>
+                            <div class="fw-bold">@Model.Name</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Department</label>
+                            <div class="fw-bold">@Model.Department</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Profile Form -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-edit"></i> Update Profile
+                </h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="UpdateProfile" method="post">
+                    <input asp-for="Id" type="hidden" />
+                    <input asp-for="Username" type="hidden" />
+                    <input asp-for="Department" type="hidden" />
+                    <input asp-for="Role" type="hidden" />
+                    <input asp-for="IsActive" type="hidden" />
+                    
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <div class="form-floating mb-3">
+                        <input asp-for="Name" class="form-control" placeholder="Full Name" maxlength="100" required />
+                        <label asp-for="Name">
+                            <i class="fas fa-id-card me-2"></i>Full Name
+                        </label>
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <input asp-for="Password" type="password" class="form-control" placeholder="New Password (optional)" />
+                        <label asp-for="Password">
+                            <i class="fas fa-lock me-2"></i>New Password (optional)
+                        </label>
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                        <div class="form-text">Leave blank to keep your current password</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> You can only update your name and password. 
+                        Contact an administrator to change your username, department, or role.
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary me-md-2">
+                            <i class="fas fa-save"></i> Update Profile
+                        </button>
+                        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security Information -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-shield-alt"></i> Security Information
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <div class="text-muted small">Password Requirements</div>
+                            <div class="small">
+                                <ul class="list-unstyled text-start mt-2">
+                                    <li><i class="fas fa-check text-success"></i> Minimum 6 characters</li>
+                                    <li><i class="fas fa-check text-success"></i> Mix of letters and numbers recommended</li>
+                                    <li><i class="fas fa-check text-success"></i> Avoid using personal information</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <div class="text-muted small">Session Info</div>
+                            <div class="small mt-2">
+                                <div>Logged in as: <strong>@User.Identity?.Name</strong></div>
+                                <div class="text-muted">Session will expire after 8 hours of inactivity</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetRoleBadgeColor(GPIMSWebServer.Models.UserRole role)
+    {
+        return role switch
+        {
+            GPIMSWebServer.Models.UserRole.Admin => "danger",
+            GPIMSWebServer.Models.UserRole.Maintenance => "warning",
+            GPIMSWebServer.Models.UserRole.Operator => "info",
+            _ => "secondary"
+        };
+    }
+}
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    
+    <script>
+        // Password strength indicator
+        document.getElementById('Password').addEventListener('input', function(e) {
+            const password = e.target.value;
+            
+            if (password.length === 0) {
+                e.target.classList.remove('is-invalid', 'is-valid');
+            } else if (password.length >= 6) {
+                e.target.classList.remove('is-invalid');
+                e.target.classList.add('is-valid');
+            } else {
+                e.target.classList.remove('is-valid');
+                e.target.classList.add('is-invalid');
+            }
+        });
+    </script>
+}
