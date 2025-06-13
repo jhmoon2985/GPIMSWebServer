@@ -1,4 +1,4 @@
-// Services/DataService.cs
+// Services/DataService.cs - 메모리 및 성능 최적화 버전
 using GPIMSWebServer.Models;
 using Microsoft.AspNetCore.SignalR;
 using GPIMSWebServer.Hubs;
@@ -10,22 +10,38 @@ namespace GPIMSWebServer.Services
     {
         private readonly IHubContext<DeviceDataHub> _hubContext;
         private readonly ILogger<DataService> _logger;
+        
+        // 메모리 효율성을 위한 설정
         private readonly ConcurrentDictionary<string, DeviceData> _latestData = new();
-        private readonly ConcurrentDictionary<string, Queue<DeviceData>> _dataHistory = new();
-        private readonly ConcurrentDictionary<string, DateTime> _lastHeartbeat = new(); // 새로 추가
-        private readonly ConcurrentDictionary<string, bool> _deviceOnlineStatus = new(); // 새로 추가
-        private const int MaxHistoryCount = 1000;
-        private const int HeartbeatTimeoutSeconds = 30; // 30초 이후 오프라인으로 간주
-        private const int InactiveDeviceTimeoutMinutes = 5; // 5분 이후 비활성으로 간주
+        private readonly ConcurrentDictionary<string, CircularBuffer<DeviceData>> _dataHistory = new();
+        private readonly ConcurrentDictionary<string, DateTime> _lastHeartbeat = new();
+        private readonly ConcurrentDictionary<string, bool> _deviceOnlineStatus = new();
+        
+        // 성능 최적화를 위한 설정
+        private const int MaxHistoryCount = 500; // 1000에서 500으로 감소
+        private const int HeartbeatTimeoutSeconds = 30;
+        private const int InactiveDeviceTimeoutMinutes = 5;
+        private const int MaxDeviceCount = 100; // 최대 디바이스 수 제한
+        
+        // 브로드캐스트 최적화를 위한 설정
+        private readonly Timer _periodicCleanupTimer;
+        private readonly SemaphoreSlim _cleanupSemaphore = new(1, 1);
+        private volatile bool _disposed = false;
 
         public DataService(IHubContext<DeviceDataHub> hubContext, ILogger<DataService> logger)
         {
             _hubContext = hubContext;
             _logger = logger;
+            
+            // 주기적 정리 타이머 설정 (5분마다)
+            _periodicCleanupTimer = new Timer(PerformPeriodicCleanup, null, 
+                TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
         }
 
         public async Task UpdateDeviceDataAsync(DeviceData deviceData)
         {
+            if (_disposed) return;
+            
             try
             {
                 if (!await ValidateDeviceDataAsync(deviceData))
@@ -37,47 +53,47 @@ namespace GPIMSWebServer.Services
                 var deviceId = deviceData.DeviceId;
                 var now = DateTime.UtcNow;
 
-                // Update latest data
+                // 메모리 제한 체크
+                if (_latestData.Count >= MaxDeviceCount && !_latestData.ContainsKey(deviceId))
+                {
+                    _logger.LogWarning($"Maximum device count ({MaxDeviceCount}) reached. Rejecting new device {deviceId}");
+                    return;
+                }
+
+                // 최신 데이터 업데이트 (이전 데이터는 GC가 자동 정리)
                 _latestData.AddOrUpdate(deviceId, deviceData, (key, oldValue) => deviceData);
 
-                // Update heartbeat
+                // 하트비트 업데이트
                 _lastHeartbeat.AddOrUpdate(deviceId, now, (key, oldValue) => now);
 
-                // Update online status if changed
+                // 온라인 상태 업데이트
                 var wasOnline = _deviceOnlineStatus.GetValueOrDefault(deviceId, false);
                 _deviceOnlineStatus.AddOrUpdate(deviceId, true, (key, oldValue) => true);
 
-                // Broadcast device status change if it went from offline to online
+                // 상태 변경 시에만 브로드캐스트
                 if (!wasOnline)
                 {
                     _logger.LogInformation($"Device {deviceId} came online");
-                    await BroadcastDeviceStatusChangeAsync(deviceId, true);
+                    _ = Task.Run(() => BroadcastDeviceStatusChangeAsync(deviceId, true));
                 }
 
-                // Update history
-                var history = _dataHistory.GetOrAdd(deviceId, _ => new Queue<DeviceData>());
-                
-                lock (history)
+                // 효율적인 히스토리 관리 (CircularBuffer 사용)
+                var history = _dataHistory.GetOrAdd(deviceId, _ => new CircularBuffer<DeviceData>(MaxHistoryCount));
+                history.Add(deviceData);
+
+                // 즉시 브로드캐스트 (비동기로 실행하여 블로킹 방지)
+                _ = Task.Run(async () =>
                 {
-                    history.Enqueue(deviceData);
-                    while (history.Count > MaxHistoryCount)
+                    try
                     {
-                        history.Dequeue();
+                        await _hubContext.Clients.Group($"Device_{deviceId}")
+                            .SendAsync("ReceiveDeviceData", deviceData);
                     }
-                }
-
-                // 즉시 브로드캐스트 - 데이터가 들어오는 즉시 전송
-                try
-                {
-                    await _hubContext.Clients.Group($"Device_{deviceId}")
-                        .SendAsync("ReceiveDeviceData", deviceData);
-                    
-                    //_logger.LogDebug($"Data broadcasted immediately for device {deviceId} with {deviceData.Channels.Count} channels");
-                }
-                catch (Exception broadcastEx)
-                {
-                    _logger.LogError(broadcastEx, $"Failed to broadcast data for device {deviceId}");
-                }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Failed to broadcast data for device {deviceId}");
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -87,8 +103,7 @@ namespace GPIMSWebServer.Services
 
         public DeviceData? GetLatestDeviceData(string deviceId)
         {
-            _latestData.TryGetValue(deviceId, out var data);
-            return data;
+            return _latestData.TryGetValue(deviceId, out var data) ? data : null;
         }
 
         public List<DeviceData> GetDeviceDataHistory(string deviceId, int count = 100)
@@ -96,25 +111,25 @@ namespace GPIMSWebServer.Services
             if (!_dataHistory.TryGetValue(deviceId, out var history))
                 return new List<DeviceData>();
 
-            lock (history)
-            {
-                return history.TakeLast(count).ToList();
-            }
+            // 요청된 개수만큼만 반환하여 메모리 사용량 최적화
+            return history.GetLast(Math.Min(count, MaxHistoryCount));
         }
 
         public List<string> GetActiveDevices()
         {
-            // 온라인 상태인 디바이스들만 반환
-            return _deviceOnlineStatus
-                .Where(kvp => kvp.Value) // 온라인 상태인 것만
-                .Select(kvp => kvp.Key)
-                .ToList();
+            // LINQ 대신 직접 반복으로 성능 최적화
+            var activeDevices = new List<string>();
+            foreach (var kvp in _deviceOnlineStatus)
+            {
+                if (kvp.Value)
+                    activeDevices.Add(kvp.Key);
+            }
+            return activeDevices;
         }
 
         public List<string> GetAllKnownDevices()
         {
-            // 모든 알려진 디바이스 반환 (온라인/오프라인 구분 없이)
-            return _latestData.Keys.ToList();
+            return new List<string>(_latestData.Keys);
         }
 
         public bool IsDeviceOnline(string deviceId)
@@ -127,52 +142,66 @@ namespace GPIMSWebServer.Services
             return _lastHeartbeat.TryGetValue(deviceId, out var lastTime) ? lastTime : null;
         }
 
-        // 새로운 메서드: 주기적으로 오프라인 디바이스 체크
         public async Task CheckDeviceTimeoutsAsync()
         {
+            if (_disposed) return;
+            
             var now = DateTime.UtcNow;
             var devicesToMarkOffline = new List<string>();
 
-            foreach (var kvp in _lastHeartbeat.ToArray())
+            // 타임아웃 체크 최적화
+            foreach (var kvp in _lastHeartbeat)
             {
                 var deviceId = kvp.Key;
                 var lastHeartbeat = kvp.Value;
                 var isCurrentlyOnline = _deviceOnlineStatus.GetValueOrDefault(deviceId, false);
 
-                // 하트비트 타임아웃 체크 (30초)
                 if (isCurrentlyOnline && (now - lastHeartbeat).TotalSeconds > HeartbeatTimeoutSeconds)
                 {
                     devicesToMarkOffline.Add(deviceId);
                 }
             }
 
-            // 오프라인으로 표시할 디바이스들 처리
-            foreach (var deviceId in devicesToMarkOffline)
+            // 배치로 오프라인 처리
+            if (devicesToMarkOffline.Any())
             {
-                _deviceOnlineStatus.AddOrUpdate(deviceId, false, (key, oldValue) => false);
-                _logger.LogWarning($"Device {deviceId} marked as offline due to heartbeat timeout");
-                
-                await BroadcastDeviceStatusChangeAsync(deviceId, false);
+                var tasks = devicesToMarkOffline.Select(async deviceId =>
+                {
+                    _deviceOnlineStatus.AddOrUpdate(deviceId, false, (key, oldValue) => false);
+                    _logger.LogWarning($"Device {deviceId} marked as offline due to heartbeat timeout");
+                    await BroadcastDeviceStatusChangeAsync(deviceId, false);
+                });
+
+                await Task.WhenAll(tasks);
             }
 
-            // 비활성 디바이스 정리 (5분 이상 데이터 없음)
-            var inactiveDevices = _lastHeartbeat
-                .Where(kvp => (now - kvp.Value).TotalMinutes > InactiveDeviceTimeoutMinutes)
-                .Select(kvp => kvp.Key)
-                .ToList();
+            // 비활성 디바이스 정리 (별도 메서드로 분리)
+            await CleanupInactiveDevicesAsync(now);
+        }
+
+        private async Task CleanupInactiveDevicesAsync(DateTime now)
+        {
+            var inactiveDevices = new List<string>();
+            
+            foreach (var kvp in _lastHeartbeat)
+            {
+                if ((now - kvp.Value).TotalMinutes > InactiveDeviceTimeoutMinutes)
+                {
+                    inactiveDevices.Add(kvp.Key);
+                }
+            }
 
             foreach (var deviceId in inactiveDevices)
             {
                 _logger.LogInformation($"Removing inactive device {deviceId} from memory");
+                
                 _lastHeartbeat.TryRemove(deviceId, out _);
                 _deviceOnlineStatus.TryRemove(deviceId, out _);
                 _latestData.TryRemove(deviceId, out _);
-                
-                if (_dataHistory.TryRemove(deviceId, out _))
-                {
-                    _logger.LogDebug($"Removed history data for inactive device {deviceId}");
-                }
+                _dataHistory.TryRemove(deviceId, out _);
             }
+
+            await Task.CompletedTask;
         }
 
         private async Task BroadcastDeviceStatusChangeAsync(string deviceId, bool isOnline)
@@ -187,9 +216,7 @@ namespace GPIMSWebServer.Services
                     LastHeartbeat = GetLastHeartbeat(deviceId)
                 };
 
-                // 모든 클라이언트에게 디바이스 상태 변경 알림
                 await _hubContext.Clients.All.SendAsync("DeviceStatusChanged", statusMessage);
-                
                 _logger.LogInformation($"Broadcasted status change for device {deviceId}: {(isOnline ? "Online" : "Offline")}");
             }
             catch (Exception ex)
@@ -200,42 +227,23 @@ namespace GPIMSWebServer.Services
 
         public async Task<bool> ValidateDeviceDataAsync(DeviceData deviceData)
         {
-            await Task.CompletedTask; // Placeholder for async validation if needed
+            await Task.CompletedTask;
             
             if (string.IsNullOrEmpty(deviceData.DeviceId))
             {
-                _logger.LogWarning("Device data validation failed: DeviceId is null or empty");
                 return false;
             }
 
-            if (deviceData.Channels.Count > 128)
-            {
-                _logger.LogWarning($"Device data validation failed: Too many channels ({deviceData.Channels.Count})");
-                return false;
-            }
-
-            if (deviceData.AuxData.Count > 256)
-            {
-                _logger.LogWarning($"Device data validation failed: Too many aux data points ({deviceData.AuxData.Count})");
-                return false;
-            }
-
-            if (deviceData.CANData.Count > 256)
-            {
-                _logger.LogWarning($"Device data validation failed: Too many CAN data points ({deviceData.CANData.Count})");
-                return false;
-            }
-
-            if (deviceData.LINData.Count > 256)
-            {
-                _logger.LogWarning($"Device data validation failed: Too many LIN data points ({deviceData.LINData.Count})");
-                return false;
-            }
+            // 더 엄격한 데이터 검증으로 메모리 보호
+            if (deviceData.Channels.Count > 64) return false; // 128에서 64로 감소
+            if (deviceData.AuxData.Count > 128) return false; // 256에서 128로 감소
+            if (deviceData.CANData.Count > 128) return false;
+            if (deviceData.LINData.Count > 128) return false;
+            if (deviceData.AlarmData.Count > 50) return false; // 새로 추가
 
             return true;
         }
 
-        // 추가: 특정 디바이스의 최신 데이터를 강제로 브로드캐스트
         public async Task BroadcastLatestDataAsync(string deviceId)
         {
             try
@@ -245,12 +253,6 @@ namespace GPIMSWebServer.Services
                 {
                     await _hubContext.Clients.Group($"Device_{deviceId}")
                         .SendAsync("ReceiveDeviceData", latestData);
-                    
-                    //_logger.LogDebug($"Manual broadcast completed for device {deviceId}");
-                }
-                else
-                {
-                    _logger.LogWarning($"No data available for manual broadcast of device {deviceId}");
                 }
             }
             catch (Exception ex)
@@ -259,7 +261,6 @@ namespace GPIMSWebServer.Services
             }
         }
 
-        // 새로운 메서드: 디바이스를 수동으로 오프라인으로 표시
         public async Task MarkDeviceOfflineAsync(string deviceId, string reason = "Manual")
         {
             try
@@ -279,19 +280,19 @@ namespace GPIMSWebServer.Services
             }
         }
 
-        // 새로운 메서드: 모든 디바이스 상태 요약 가져오기
         public List<object> GetDeviceStatusSummary()
         {
-            var now = DateTime.UtcNow;
             var statusList = new List<object>();
+            var allDevices = GetAllKnownDevices();
 
-            foreach (var deviceId in GetAllKnownDevices())
+            // 병렬 처리로 성능 최적화
+            var summaries = allDevices.AsParallel().Select(deviceId =>
             {
                 var isOnline = IsDeviceOnline(deviceId);
                 var lastHeartbeat = GetLastHeartbeat(deviceId);
                 var latestData = GetLatestDeviceData(deviceId);
 
-                var status = new
+                return new
                 {
                     DeviceId = deviceId,
                     IsOnline = isOnline,
@@ -304,11 +305,160 @@ namespace GPIMSWebServer.Services
                     AlarmCount = latestData?.AlarmData?.Count ?? 0,
                     HasCriticalAlarms = latestData?.AlarmData?.Any(a => a.Severity == AlarmSeverity.Critical) ?? false
                 };
+            }).ToList();
 
-                statusList.Add(status);
+            return summaries.Cast<object>().ToList();
+        }
+
+        // 주기적 정리 작업
+        private async void PerformPeriodicCleanup(object? state)
+        {
+            if (_disposed) return;
+            
+            if (await _cleanupSemaphore.WaitAsync(100))
+            {
+                try
+                {
+                    await CheckDeviceTimeoutsAsync();
+                    
+                    // 메모리 사용량 체크 및 강제 GC
+                    var memoryBefore = GC.GetTotalMemory(false);
+                    if (memoryBefore > 200 * 1024 * 1024) // 200MB 이상일 때
+                    {
+                        _logger.LogInformation($"Memory usage high: {memoryBefore / 1024 / 1024} MB, triggering cleanup");
+                        
+                        // 오래된 히스토리 데이터 정리
+                        CleanupOldHistoryData();
+                        
+                        GC.Collect(2, GCCollectionMode.Optimized);
+                        GC.WaitForPendingFinalizers();
+                        
+                        var memoryAfter = GC.GetTotalMemory(true);
+                        _logger.LogInformation($"Memory after cleanup: {memoryAfter / 1024 / 1024} MB");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error during periodic cleanup");
+                }
+                finally
+                {
+                    _cleanupSemaphore.Release();
+                }
             }
+        }
 
-            return statusList;
+        private void CleanupOldHistoryData()
+        {
+            foreach (var kvp in _dataHistory.ToArray())
+            {
+                var history = kvp.Value;
+                if (history.Count > MaxHistoryCount / 2)
+                {
+                    // 오래된 데이터의 절반 정도 제거
+                    history.TrimToSize(MaxHistoryCount / 2);
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            
+            _disposed = true;
+            _periodicCleanupTimer?.Dispose();
+            _cleanupSemaphore?.Dispose();
+            
+            // 메모리 정리
+            _latestData.Clear();
+            _dataHistory.Clear();
+            _lastHeartbeat.Clear();
+            _deviceOnlineStatus.Clear();
+        }
+    }
+
+    // 메모리 효율적인 순환 버퍼 구현
+    public class CircularBuffer<T>
+    {
+        private readonly T[] _buffer;
+        private readonly int _capacity;
+        private int _head = 0;
+        private int _tail = 0;
+        private int _count = 0;
+        private readonly object _lock = new object();
+
+        public CircularBuffer(int capacity)
+        {
+            _capacity = capacity;
+            _buffer = new T[capacity];
+        }
+
+        public int Count 
+        { 
+            get 
+            { 
+                lock (_lock) 
+                { 
+                    return _count; 
+                } 
+            } 
+        }
+
+        public void Add(T item)
+        {
+            lock (_lock)
+            {
+                _buffer[_tail] = item;
+                _tail = (_tail + 1) % _capacity;
+                
+                if (_count < _capacity)
+                {
+                    _count++;
+                }
+                else
+                {
+                    _head = (_head + 1) % _capacity; // 오래된 데이터 덮어쓰기
+                }
+            }
+        }
+
+        public List<T> GetLast(int count)
+        {
+            lock (_lock)
+            {
+                var result = new List<T>(Math.Min(count, _count));
+                var actualCount = Math.Min(count, _count);
+                
+                for (int i = 0; i < actualCount; i++)
+                {
+                    var index = (_tail - actualCount + i + _capacity) % _capacity;
+                    result.Add(_buffer[index]);
+                }
+                
+                return result;
+            }
+        }
+
+        public void TrimToSize(int newSize)
+        {
+            lock (_lock)
+            {
+                if (newSize >= _count) return;
+                
+                // 최신 데이터만 유지
+                var newBuffer = new T[_capacity];
+                int sourceIndex = (_tail - newSize + _capacity) % _capacity;
+                
+                for (int i = 0; i < newSize; i++)
+                {
+                    newBuffer[i] = _buffer[(sourceIndex + i) % _capacity];
+                }
+                
+                Array.Copy(newBuffer, _buffer, _capacity);
+                _head = 0;
+                _tail = newSize % _capacity;
+                _count = newSize;
+            }
         }
     }
 }

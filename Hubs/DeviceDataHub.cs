@@ -1,7 +1,8 @@
-// Hubs/DeviceDataHub.cs
+// Hubs/DeviceDataHub.cs - 메모리 및 성능 최적화 버전
 using Microsoft.AspNetCore.SignalR;
 using GPIMSWebServer.Models;
 using GPIMSWebServer.Services;
+using System.Collections.Concurrent;
 
 namespace GPIMSWebServer.Hubs
 {
@@ -9,6 +10,17 @@ namespace GPIMSWebServer.Hubs
     {
         private readonly IDataService _dataService;
         private readonly ILogger<DeviceDataHub> _logger;
+        
+        // 연결 관리 최적화
+        private static readonly ConcurrentDictionary<string, HashSet<string>> _deviceGroups = new();
+        private static readonly ConcurrentDictionary<string, DateTime> _connectionLastActivity = new();
+        private static readonly ConcurrentDictionary<string, string> _connectionInfo = new();
+        private static readonly object _groupsLock = new object();
+        
+        // 성능 모니터링
+        private static long _totalConnections = 0;
+        private static long _totalDisconnections = 0;
+        private static long _totalGroupJoins = 0;
 
         public DeviceDataHub(IDataService dataService, ILogger<DeviceDataHub> logger)
         {
@@ -18,14 +30,44 @@ namespace GPIMSWebServer.Hubs
 
         public async Task JoinDeviceGroup(string deviceId)
         {
+            if (string.IsNullOrEmpty(deviceId) || deviceId.Length > 50)
+            {
+                _logger.LogWarning($"Invalid device ID for connection {Context.ConnectionId}");
+                return;
+            }
+
             try
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
-                _logger.LogInformation($"Client {Context.ConnectionId} joined group Device_{deviceId}");
                 
-                // 그룹 참가 즉시 최신 데이터 및 상태 전송
-                await RequestLatestData(deviceId);
-                await SendDeviceStatus(deviceId);
+                // 연결 추적 최적화
+                lock (_groupsLock)
+                {
+                    if (!_deviceGroups.ContainsKey(deviceId))
+                    {
+                        _deviceGroups[deviceId] = new HashSet<string>();
+                    }
+                    _deviceGroups[deviceId].Add(Context.ConnectionId);
+                }
+                
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                Interlocked.Increment(ref _totalGroupJoins);
+                
+                _logger.LogDebug($"Client {Context.ConnectionId} joined group Device_{deviceId}");
+                
+                // 비동기로 최신 데이터 전송 (블로킹 방지)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await RequestLatestData(deviceId);
+                        await SendDeviceStatus(deviceId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, $"Error sending initial data for device {deviceId}");
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -35,10 +77,29 @@ namespace GPIMSWebServer.Hubs
 
         public async Task LeaveDeviceGroup(string deviceId)
         {
+            if (string.IsNullOrEmpty(deviceId))
+                return;
+
             try
             {
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
-                _logger.LogInformation($"Client {Context.ConnectionId} left group Device_{deviceId}");
+                
+                // 연결 추적에서 제거
+                lock (_groupsLock)
+                {
+                    if (_deviceGroups.TryGetValue(deviceId, out var connections))
+                    {
+                        connections.Remove(Context.ConnectionId);
+                        
+                        // 빈 그룹 정리
+                        if (connections.Count == 0)
+                        {
+                            _deviceGroups.TryRemove(deviceId, out _);
+                        }
+                    }
+                }
+                
+                _logger.LogDebug($"Client {Context.ConnectionId} left group Device_{deviceId}");
             }
             catch (Exception ex)
             {
@@ -48,17 +109,20 @@ namespace GPIMSWebServer.Hubs
 
         public async Task RequestLatestData(string deviceId)
         {
+            if (string.IsNullOrEmpty(deviceId))
+                return;
+
             try
             {
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
                 var latestData = _dataService.GetLatestDeviceData(deviceId);
                 if (latestData != null)
                 {
                     await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
-                    //_logger.LogDebug($"Latest data sent to caller for device {deviceId}");
                 }
                 else
                 {
-                    _logger.LogWarning($"No latest data available for device {deviceId}");
                     await Clients.Caller.SendAsync("NoDataAvailable", deviceId);
                 }
             }
@@ -72,16 +136,21 @@ namespace GPIMSWebServer.Hubs
         {
             try
             {
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
+                // 병렬로 디바이스 정보 수집
                 var allDevices = _dataService.GetAllKnownDevices();
-                var deviceListWithStatus = allDevices.Select(deviceId => new
+                var deviceListWithStatus = await Task.Run(() =>
                 {
-                    DeviceId = deviceId,
-                    IsOnline = _dataService.IsDeviceOnline(deviceId),
-                    LastHeartbeat = _dataService.GetLastHeartbeat(deviceId)
-                }).ToList();
+                    return allDevices.AsParallel().Select(deviceId => new
+                    {
+                        DeviceId = deviceId,
+                        IsOnline = _dataService.IsDeviceOnline(deviceId),
+                        LastHeartbeat = _dataService.GetLastHeartbeat(deviceId)
+                    }).ToList();
+                });
 
                 await Clients.Caller.SendAsync("ReceiveDeviceList", deviceListWithStatus);
-                //_logger.LogDebug($"Device list with status sent to caller: {allDevices.Count} devices");
             }
             catch (Exception ex)
             {
@@ -91,21 +160,38 @@ namespace GPIMSWebServer.Hubs
 
         public async Task RefreshDeviceData(string deviceId)
         {
+            if (string.IsNullOrEmpty(deviceId))
+                return;
+
             try
             {
-                // 강제로 최신 데이터를 브로드캐스트
-                await _dataService.BroadcastLatestDataAsync(deviceId);
-                _logger.LogInformation($"Manual refresh triggered for device {deviceId} by connection {Context.ConnectionId}");
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
+                // 비동기로 처리하여 응답성 향상
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _dataService.BroadcastLatestDataAsync(deviceId);
+                        _logger.LogDebug($"Manual refresh triggered for device {deviceId} by connection {Context.ConnectionId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error during manual refresh for device {deviceId}");
+                    }
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error during manual refresh for device {deviceId}");
+                _logger.LogError(ex, $"Error processing refresh request for device {deviceId}");
             }
         }
 
-        // 새로 추가: 특정 디바이스 상태 전송
         public async Task SendDeviceStatus(string deviceId)
         {
+            if (string.IsNullOrEmpty(deviceId))
+                return;
+
             try
             {
                 var isOnline = _dataService.IsDeviceOnline(deviceId);
@@ -125,7 +211,6 @@ namespace GPIMSWebServer.Hubs
                 };
 
                 await Clients.Caller.SendAsync("ReceiveDeviceStatus", deviceStatus);
-                //_logger.LogDebug($"Device status sent for {deviceId}: {(isOnline ? "Online" : "Offline")}");
             }
             catch (Exception ex)
             {
@@ -133,11 +218,15 @@ namespace GPIMSWebServer.Hubs
             }
         }
 
-        // 새로 추가: 디바이스를 수동으로 오프라인으로 표시
         public async Task MarkDeviceOffline(string deviceId, string reason = "Manual disconnect")
         {
+            if (string.IsNullOrEmpty(deviceId))
+                return;
+
             try
             {
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
                 await _dataService.MarkDeviceOfflineAsync(deviceId, reason);
                 _logger.LogInformation($"Device {deviceId} manually marked offline by connection {Context.ConnectionId}. Reason: {reason}");
             }
@@ -147,29 +236,61 @@ namespace GPIMSWebServer.Hubs
             }
         }
 
-        // 새로 추가: 여러 디바이스 그룹에 한번에 참가
         public async Task JoinMultipleDeviceGroups(List<string> deviceIds)
         {
+            if (deviceIds == null || !deviceIds.Any() || deviceIds.Count > 50) // 최대 50개 제한
+            {
+                _logger.LogWarning($"Invalid device IDs list for connection {Context.ConnectionId}");
+                return;
+            }
+
             try
             {
-                foreach (var deviceId in deviceIds)
+                var tasks = deviceIds.Select(async deviceId =>
                 {
-                    await Groups.AddToGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
-                    _logger.LogInformation($"Client {Context.ConnectionId} joined group Device_{deviceId}");
-                }
-                
-                // 모든 디바이스의 최신 데이터 및 상태 전송
-                foreach (var deviceId in deviceIds)
-                {
-                    var latestData = _dataService.GetLatestDeviceData(deviceId);
-                    if (latestData != null)
+                    if (!string.IsNullOrEmpty(deviceId) && deviceId.Length <= 50)
                     {
-                        await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
+                        await Groups.AddToGroupAsync(Context.ConnectionId, $"Device_{deviceId}");
+                        
+                        lock (_groupsLock)
+                        {
+                            if (!_deviceGroups.ContainsKey(deviceId))
+                            {
+                                _deviceGroups[deviceId] = new HashSet<string>();
+                            }
+                            _deviceGroups[deviceId].Add(Context.ConnectionId);
+                        }
                     }
-                    await SendDeviceStatus(deviceId);
-                }
+                });
                 
-                _logger.LogInformation($"Client {Context.ConnectionId} joined {deviceIds.Count} device groups");
+                await Task.WhenAll(tasks);
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
+                _logger.LogDebug($"Client {Context.ConnectionId} joined {deviceIds.Count} device groups");
+                
+                // 배치로 데이터 전송 (성능 최적화)
+                _ = Task.Run(async () =>
+                {
+                    var dataTasks = deviceIds.Where(id => !string.IsNullOrEmpty(id))
+                                            .Select(async deviceId =>
+                    {
+                        try
+                        {
+                            var latestData = _dataService.GetLatestDeviceData(deviceId);
+                            if (latestData != null)
+                            {
+                                await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
+                            }
+                            await SendDeviceStatus(deviceId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, $"Error sending data for device {deviceId}");
+                        }
+                    });
+                    
+                    await Task.WhenAll(dataTasks);
+                });
             }
             catch (Exception ex)
             {
@@ -177,18 +298,29 @@ namespace GPIMSWebServer.Hubs
             }
         }
 
-        // 새로 추가: 전체 디바이스 상태 브로드캐스트
         public async Task BroadcastAllDevicesStatus()
         {
             try
             {
-                var deviceStatusList = _dataService.GetDeviceStatusSummary();
-                await Clients.All.SendAsync("ReceiveAllDevicesStatus", deviceStatusList);
-                //_logger.LogDebug($"Broadcasted status for {deviceStatusList.Count} devices");
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                
+                // 비동기로 처리하여 성능 향상
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var deviceStatusList = _dataService.GetDeviceStatusSummary();
+                        await Clients.All.SendAsync("ReceiveAllDevicesStatus", deviceStatusList);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error broadcasting all devices status");
+                    }
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error broadcasting all devices status");
+                _logger.LogError(ex, "Error processing broadcast all devices status request");
             }
         }
 
@@ -196,11 +328,25 @@ namespace GPIMSWebServer.Hubs
         {
             try
             {
-                await Clients.Caller.SendAsync("Connected", Context.ConnectionId);
-                _logger.LogInformation($"Client {Context.ConnectionId} connected to DeviceDataHub");
+                Interlocked.Increment(ref _totalConnections);
+                _connectionLastActivity[Context.ConnectionId] = DateTime.UtcNow;
+                _connectionInfo[Context.ConnectionId] = $"{Context.UserIdentifier ?? "Anonymous"}@{Context.GetHttpContext()?.Connection.RemoteIpAddress}";
                 
-                // 연결 즉시 활성 디바이스 목록 전송
-                await RequestDeviceList();
+                await Clients.Caller.SendAsync("Connected", Context.ConnectionId);
+                _logger.LogDebug($"Client {Context.ConnectionId} connected to DeviceDataHub (Total: {_totalConnections})");
+                
+                // 비동기로 디바이스 목록 전송
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await RequestDeviceList();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, $"Error sending initial device list to {Context.ConnectionId}");
+                    }
+                });
                 
                 await base.OnConnectedAsync();
             }
@@ -214,11 +360,43 @@ namespace GPIMSWebServer.Hubs
         {
             try
             {
-                _logger.LogInformation($"Client {Context.ConnectionId} disconnected from DeviceDataHub");
+                Interlocked.Increment(ref _totalDisconnections);
+                
+                // 연결 정보 정리
+                _connectionLastActivity.TryRemove(Context.ConnectionId, out _);
+                _connectionInfo.TryRemove(Context.ConnectionId, out _);
+                
+                // 모든 디바이스 그룹에서 제거
+                lock (_groupsLock)
+                {
+                    var groupsToUpdate = _deviceGroups.Where(kvp => kvp.Value.Contains(Context.ConnectionId)).ToList();
+                    
+                    foreach (var kvp in groupsToUpdate)
+                    {
+                        kvp.Value.Remove(Context.ConnectionId);
+                        
+                        // 빈 그룹 정리
+                        if (kvp.Value.Count == 0)
+                        {
+                            _deviceGroups.TryRemove(kvp.Key, out _);
+                        }
+                    }
+                }
+                
+                var disconnectReason = exception?.GetType().Name ?? "Normal";
+                _logger.LogDebug($"Client {Context.ConnectionId} disconnected from DeviceDataHub. Reason: {disconnectReason}");
+                
                 if (exception != null)
                 {
                     _logger.LogWarning(exception, $"Client {Context.ConnectionId} disconnected with exception");
                 }
+                
+                // 주기적으로 연결 통계 로깅 (1000번째 연결마다)
+                if (_totalConnections % 1000 == 0)
+                {
+                    _logger.LogInformation($"SignalR stats - Total connections: {_totalConnections}, disconnections: {_totalDisconnections}, active groups: {_deviceGroups.Count}");
+                }
+                
                 await base.OnDisconnectedAsync(exception);
             }
             catch (Exception ex)
@@ -226,5 +404,67 @@ namespace GPIMSWebServer.Hubs
                 _logger.LogError(ex, $"Error during client disconnection {Context.ConnectionId}");
             }
         }
+
+        // 정적 메서드로 허브 상태 모니터링
+        public static HubConnectionStats GetConnectionStats()
+        {
+            lock (_groupsLock)
+            {
+                return new HubConnectionStats
+                {
+                    TotalConnections = _totalConnections,
+                    TotalDisconnections = _totalDisconnections,
+                    TotalGroupJoins = _totalGroupJoins,
+                    ActiveConnections = _connectionLastActivity.Count,
+                    ActiveGroups = _deviceGroups.Count,
+                    ConnectionsPerGroup = _deviceGroups.ToDictionary(
+                        kvp => kvp.Key, 
+                        kvp => kvp.Value.Count
+                    )
+                };
+            }
+        }
+
+        // 비활성 연결 정리 (백그라운드 서비스에서 호출)
+        public static void CleanupInactiveConnections(TimeSpan inactivityThreshold)
+        {
+            var cutoffTime = DateTime.UtcNow.Subtract(inactivityThreshold);
+            var inactiveConnections = _connectionLastActivity
+                .Where(kvp => kvp.Value < cutoffTime)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var connectionId in inactiveConnections)
+            {
+                _connectionLastActivity.TryRemove(connectionId, out _);
+                _connectionInfo.TryRemove(connectionId, out _);
+                
+                lock (_groupsLock)
+                {
+                    var groupsToUpdate = _deviceGroups.Where(kvp => kvp.Value.Contains(connectionId)).ToList();
+                    
+                    foreach (var kvp in groupsToUpdate)
+                    {
+                        kvp.Value.Remove(connectionId);
+                        
+                        if (kvp.Value.Count == 0)
+                        {
+                            _deviceGroups.TryRemove(kvp.Key, out _);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 연결 통계 클래스
+    public class HubConnectionStats
+    {
+        public long TotalConnections { get; set; }
+        public long TotalDisconnections { get; set; }
+        public long TotalGroupJoins { get; set; }
+        public int ActiveConnections { get; set; }
+        public int ActiveGroups { get; set; }
+        public Dictionary<string, int> ConnectionsPerGroup { get; set; } = new();
     }
 }
