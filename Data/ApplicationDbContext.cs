@@ -12,6 +12,7 @@ namespace GPIMSWebServer.Data
 
         public DbSet<User> Users { get; set; }
         public DbSet<UserActivity> UserActivities { get; set; }
+        public DbSet<DeviceUpdate> DeviceUpdates { get; set; } // 새로 추가
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -34,6 +35,24 @@ namespace GPIMSWebServer.Data
                     .WithMany()
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // 새로 추가된 DeviceUpdate 엔터티 설정
+            modelBuilder.Entity<DeviceUpdate>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => e.DeviceId);
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => new { e.DeviceId, e.CreatedAt });
+                
+                entity.Property(e => e.Status)
+                    .HasConversion<string>();
+                
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

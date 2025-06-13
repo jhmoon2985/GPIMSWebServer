@@ -1,0 +1,478 @@
+@model List<GPIMSWebServer.Models.UpdateHistoryViewModel>
+@{
+    ViewData["Title"] = "Update History";
+    var selectedDevice = ViewBag.SelectedDevice as string;
+    var count = ViewBag.Count as int? ?? 50;
+    var availableDevices = ViewBag.AvailableDevices as List<string> ?? new List<string>();
+    var userRole = ViewBag.UserRole as string ?? "Unknown";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-4"><i class="fas fa-history"></i> Device Update History</h1>
+                <p class="text-muted mb-0">Track all firmware update activities</p>
+            </div>
+            <div>
+                <a href="@Url.Action("Index")" class="btn btn-primary me-2">
+                    <i class="fas fa-upload"></i> New Update
+                </a>
+                <a href="@Url.Action("Index", "Home")" class="btn btn-outline-secondary">
+                    <i class="fas fa-home"></i> Back to Home
+                </a>
+            </div>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- Filter Controls -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Filter by Device</label>
+                        <select name="deviceId" class="form-select">
+                            <option value="">All Devices</option>
+                            @foreach (var device in availableDevices)
+                            {
+                                <option value="@device" selected="@(device == selectedDevice)">@device</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Show Entries</label>
+                        <select name="count" class="form-select">
+                            <option value="25" selected="@(count == 25)">25</option>
+                            <option value="50" selected="@(count == 50)">50</option>
+                            <option value="100" selected="@(count == 100)">100</option>
+                            <option value="200" selected="@(count == 200)">200</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Apply Filter
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <a href="@Url.Action("History")" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Clear
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">@Model.Count</h5>
+                        <p class="card-text">Total Updates</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">@Model.Count(u => u.Status == GPIMSWebServer.Models.UpdateStatus.Completed)</h5>
+                        <p class="card-text">Completed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">@Model.Count(u => u.Status == GPIMSWebServer.Models.UpdateStatus.InProgress)</h5>
+                        <p class="card-text">In Progress</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-danger">@Model.Count(u => u.Status == GPIMSWebServer.Models.UpdateStatus.Failed)</h5>
+                        <p class="card-text">Failed</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Update History
+                        <span class="badge bg-secondary ms-2">@Model.Count entries</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <!-- Status filter buttons -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="statusFilter" id="filterAll" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="filterAll">All</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filterCompleted" autocomplete="off">
+                            <label class="btn btn-outline-success" for="filterCompleted">Completed</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filterInProgress" autocomplete="off">
+                            <label class="btn btn-outline-info" for="filterInProgress">In Progress</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filterFailed" autocomplete="off">
+                            <label class="btn btn-outline-danger" for="filterFailed">Failed</label>
+                        </div>
+                        
+                        <!-- Search box -->
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <input type="text" class="form-control" placeholder="Search updates..." id="searchUpdates">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th><i class="fas fa-microchip"></i> Device</th>
+                                    <th><i class="fas fa-code-branch"></i> Version</th>
+                                    <th><i class="fas fa-file"></i> File</th>
+                                    <th><i class="fas fa-info-circle"></i> Status</th>
+                                    <th><i class="fas fa-chart-line"></i> Progress</th>
+                                    <th><i class="fas fa-user"></i> Created By</th>
+                                    <th><i class="fas fa-clock"></i> Date</th>
+                                    <th><i class="fas fa-stopwatch"></i> Duration</th>
+                                    <th><i class="fas fa-cogs"></i> Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var update in Model)
+                                {
+                                    <tr class="update-row" 
+                                        data-status="@update.Status.ToString().ToLower()"
+                                        data-search="@($"{update.DeviceId} {update.TargetVersion} {update.FileName} {update.CreatedByUsername}".ToLower())">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-microchip me-2 text-primary"></i>
+                                                <strong>@update.DeviceId</strong>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <div class="small text-muted">@update.CurrentVersion</div>
+                                                <div class="fw-medium">
+                                                    <i class="fas fa-arrow-right text-muted mx-1"></i>
+                                                    @update.TargetVersion
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <div class="fw-medium">@update.FileName</div>
+                                                <small class="text-muted">@FormatFileSize(update.FileSize)</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@GetStatusColor(update.Status) fs-6">
+                                                <i class="fas fa-@GetStatusIcon(update.Status) me-1"></i>
+                                                @update.Status
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if (update.Status == GPIMSWebServer.Models.UpdateStatus.InProgress)
+                                            {
+                                                <div class="progress" style="height: 20px; width: 60px;">
+                                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                         style="width: @(update.Progress)%">
+                                                        <small>@(update.Progress)%</small>
+                                                    </div>
+                                                </div>
+                                            }
+                                            else if (update.Status == GPIMSWebServer.Models.UpdateStatus.Completed)
+                                            {
+                                                <span class="text-success">
+                                                    <i class="fas fa-check-circle"></i> 100%
+                                                </span>
+                                            }
+                                            else if (update.Status == GPIMSWebServer.Models.UpdateStatus.Failed)
+                                            {
+                                                <span class="text-danger">
+                                                    <i class="fas fa-times-circle"></i> @(update.Progress)%
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="fw-medium">@update.CreatedByUsername</span>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <div class="fw-medium">@update.CreatedAt.ToString("MMM dd, yyyy")</div>
+                                                <small class="text-muted">@update.CreatedAt.ToString("HH:mm:ss")</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (update.Duration.HasValue)
+                                            {
+                                                <span class="text-muted">@FormatDuration(update.Duration.Value)</span>
+                                            }
+                                            else if (update.Status == GPIMSWebServer.Models.UpdateStatus.InProgress && update.StartedAt.HasValue)
+                                            {
+                                                <span class="text-info">
+                                                    <i class="fas fa-clock"></i> Running...
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                @if (!string.IsNullOrEmpty(update.Description))
+                                                {
+                                                    <button type="button" class="btn btn-outline-info btn-sm" 
+                                                            title="@update.Description" data-bs-toggle="tooltip">
+                                                        <i class="fas fa-info"></i>
+                                                    </button>
+                                                }
+                                                
+                                                @if (!string.IsNullOrEmpty(update.ErrorMessage))
+                                                {
+                                                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                            onclick="showErrorDetails('@update.Id', '@Html.Raw(Html.Encode(update.ErrorMessage))')"
+                                                            title="View Error Details">
+                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                    </button>
+                                                }
+                                                
+                                                @if (update.Status == GPIMSWebServer.Models.UpdateStatus.InProgress && (userRole == "Admin" || userRole == "Maintenance"))
+                                                {
+                                                    <form asp-action="Cancel" asp-route-id="@update.Id" method="post" style="display: inline;">
+                                                        @Html.AntiForgeryToken()
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                                onclick="return confirm('Are you sure you want to cancel this update?')"
+                                                                title="Cancel Update">
+                                                            <i class="fas fa-stop"></i>
+                                                        </button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No update history found</h5>
+                        <p class="text-muted">Device update history will appear here as updates are performed.</p>
+                        <a href="@Url.Action("Index")" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Start First Update
+                        </a>
+                    </div>
+                }
+            </div>
+            @if (Model.Any())
+            {
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <span id="visibleCount">@Model.Count</span> of @Model.Count updates shown
+                            @if (!string.IsNullOrEmpty(selectedDevice))
+                            {
+                                <span class="badge bg-info ms-2">Filtered by: @selectedDevice</span>
+                            }
+                        </small>
+                        <small class="text-muted">
+                            Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                        </small>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Error Details Modal -->
+<div class="modal fade" id="errorDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger"></i> Error Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6>Update ID: <span id="errorUpdateId"></span></h6>
+                    <hr>
+                    <div id="errorMessage" class="font-monospace small"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetStatusColor(GPIMSWebServer.Models.UpdateStatus status)
+    {
+        return status switch
+        {
+            GPIMSWebServer.Models.UpdateStatus.Pending => "secondary",
+            GPIMSWebServer.Models.UpdateStatus.InProgress => "info",
+            GPIMSWebServer.Models.UpdateStatus.Completed => "success",
+            GPIMSWebServer.Models.UpdateStatus.Failed => "danger",
+            GPIMSWebServer.Models.UpdateStatus.Cancelled => "warning",
+            _ => "secondary"
+        };
+    }
+
+    private string GetStatusIcon(GPIMSWebServer.Models.UpdateStatus status)
+    {
+        return status switch
+        {
+            GPIMSWebServer.Models.UpdateStatus.Pending => "clock",
+            GPIMSWebServer.Models.UpdateStatus.InProgress => "spinner",
+            GPIMSWebServer.Models.UpdateStatus.Completed => "check-circle",
+            GPIMSWebServer.Models.UpdateStatus.Failed => "times-circle",
+            GPIMSWebServer.Models.UpdateStatus.Cancelled => "ban",
+            _ => "question"
+        };
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024 * 1024):F1} MB";
+        return $"{bytes / (1024 * 1024 * 1024):F1} GB";
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes < 1) return $"{duration.Seconds}s";
+        if (duration.TotalHours < 1) return $"{duration.Minutes}m {duration.Seconds}s";
+        return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+    }
+}
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchUpdates');
+        const filterButtons = document.querySelectorAll('input[name="statusFilter"]');
+        const updateRows = document.querySelectorAll('.update-row');
+        const visibleCountElement = document.getElementById('visibleCount');
+
+        function updateVisibleCount() {
+            const visibleRows = document.querySelectorAll('.update-row:not([style*="display: none"])');
+            if (visibleCountElement) {
+                visibleCountElement.textContent = visibleRows.length;
+            }
+        }
+
+        function filterUpdates() {
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const activeFilter = document.querySelector('input[name="statusFilter"]:checked')?.id || 'filterAll';
+
+            updateRows.forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                const status = row.getAttribute('data-status') || '';
+                
+                let showRow = true;
+
+                // Apply search filter
+                if (searchTerm && !searchData.includes(searchTerm)) {
+                    showRow = false;
+                }
+
+                // Apply status filter
+                if (activeFilter === 'filterCompleted' && status !== 'completed') {
+                    showRow = false;
+                } else if (activeFilter === 'filterInProgress' && status !== 'inprogress') {
+                    showRow = false;
+                } else if (activeFilter === 'filterFailed' && status !== 'failed') {
+                    showRow = false;
+                }
+
+                row.style.display = showRow ? '' : 'none';
+            });
+
+            updateVisibleCount();
+        }
+
+        // Event listeners
+        if (searchInput) {
+            searchInput.addEventListener('input', filterUpdates);
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('change', filterUpdates);
+        });
+
+        // Initial count
+        updateVisibleCount();
+
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Auto refresh every 30 seconds
+        setInterval(function() {
+            // Only refresh if there are in-progress updates
+            const inProgressUpdates = document.querySelectorAll('[data-status="inprogress"]');
+            if (inProgressUpdates.length > 0) {
+                window.location.reload();
+            }
+        }, 30000);
+    });
+
+    function showErrorDetails(updateId, errorMessage) {
+        document.getElementById('errorUpdateId').textContent = updateId;
+        document.getElementById('errorMessage').textContent = errorMessage;
+        
+        const modal = new bootstrap.Modal(document.getElementById('errorDetailsModal'));
+        modal.show();
+    }
+</script>
+}

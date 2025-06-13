@@ -1,0 +1,448 @@
+@model GPIMSWebServer.Models.DeviceUpdateViewModel
+@{
+    ViewData["Title"] = "Device Update";
+    var availableDevices = ViewBag.AvailableDevices as List<string> ?? new List<string>();
+    var userRole = ViewBag.UserRole as string ?? "Unknown";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-4"><i class="fas fa-download"></i> Device Software Update</h1>
+                <p class="text-muted mb-0">Upload and deploy firmware updates to devices</p>
+            </div>
+            <div>
+                <a href="@Url.Action("History")" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-history"></i> Update History
+                </a>
+                <a href="@Url.Action("Index", "Home")" class="btn btn-outline-primary">
+                    <i class="fas fa-home"></i> Back to Home
+                </a>
+            </div>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- Permission Notice -->
+        @if (userRole == "Operator")
+        {
+            <div class="alert alert-warning">
+                <i class="fas fa-lock me-2"></i>
+                <strong>Access Restricted:</strong> You can view update information but cannot perform updates. Contact maintenance or admin personnel.
+            </div>
+        }
+    </div>
+</div>
+
+<div class="row">
+    <!-- Update Form -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-upload"></i> Upload Firmware Update
+                </h5>
+            </div>
+            <div class="card-body">
+                @if (userRole == "Admin" || userRole == "Maintenance")
+                {
+                    <form asp-action="Upload" method="post" enctype="multipart/form-data" id="updateForm">
+                        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                        <div class="form-floating mb-3">
+                            <select asp-for="DeviceId" class="form-select" required>
+                                <option value="">Select Device</option>
+                                @foreach (var device in availableDevices)
+                                {
+                                    <option value="@device">@device</option>
+                                }
+                            </select>
+                            <label asp-for="DeviceId">
+                                <i class="fas fa-microchip me-2"></i>Target Device
+                            </label>
+                            <span asp-validation-for="DeviceId" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <input asp-for="TargetVersion" class="form-control" placeholder="e.g., 2.1.0" required />
+                            <label asp-for="TargetVersion">
+                                <i class="fas fa-tag me-2"></i>Target Version
+                            </label>
+                            <span asp-validation-for="TargetVersion" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="UpdateFile" class="form-label">
+                                <i class="fas fa-file me-2"></i>Firmware File
+                            </label>
+                            <input asp-for="UpdateFile" type="file" class="form-control" 
+                                   accept=".bin,.hex,.fw,.img,.zip" required />
+                            <div class="form-text">Supported formats: .bin, .hex, .fw, .img, .zip (Max: 50MB)</div>
+                            <span asp-validation-for="UpdateFile" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <textarea asp-for="Description" class="form-control" placeholder="Update description..." style="height: 100px"></textarea>
+                            <label asp-for="Description">
+                                <i class="fas fa-comment me-2"></i>Description (Optional)
+                            </label>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> Device will be unavailable during the update process. 
+                            Ensure the device is not in use before proceeding.
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                                <i class="fas fa-rocket"></i> Start Update
+                            </button>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="fas fa-lock fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Access Restricted</h5>
+                        <p class="text-muted">You do not have permission to perform firmware updates.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Status & Current Updates -->
+    <div class="col-lg-6">
+        <!-- Available Devices -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-desktop"></i> Available Devices
+                    <span class="badge bg-success ms-2">@availableDevices.Count online</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                @if (availableDevices.Any())
+                {
+                    <div class="row">
+                        @foreach (var device in availableDevices.Take(6))
+                        {
+                            <div class="col-md-6 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-circle text-success me-2"></i>
+                                    <span class="fw-medium">@device</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    @if (availableDevices.Count > 6)
+                    {
+                        <div class="text-muted">
+                            <small>and @(availableDevices.Count - 6) more devices...</small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="text-center text-muted">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        No devices currently online
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Current Updates Status -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-sync"></i> Current Updates
+                    <button class="btn btn-sm btn-outline-secondary float-end" onclick="refreshUpdates()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </h6>
+            </div>
+            <div class="card-body" id="currentUpdates">
+                <div class="text-center text-muted">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No updates currently in progress
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Progress Modal -->
+<div class="modal fade" id="updateProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-download"></i> Update Progress
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Device: <strong id="progressDeviceId">-</strong></span>
+                        <span>Status: <span id="progressStatus" class="badge bg-info">-</span></span>
+                    </div>
+                </div>
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="progressBar" role="progressbar" style="width: 0%">
+                        <span id="progressText">0%</span>
+                    </div>
+                </div>
+                <div id="progressMessage" class="text-muted">
+                    Preparing update...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    
+    <script>
+        let connection;
+        let currentUpdateId = null;
+        
+        // Initialize SignalR connection
+        document.addEventListener('DOMContentLoaded', function() {
+            initSignalR();
+            refreshUpdates();
+            
+            // Form submission handler
+            document.getElementById('updateForm')?.addEventListener('submit', function(e) {
+                const uploadBtn = document.getElementById('uploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+                    uploadBtn.disabled = true;
+                }
+            });
+            
+            // File input validation
+            document.querySelector('input[type="file"]')?.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const maxSize = 50 * 1024 * 1024; // 50MB
+                    if (file.size > maxSize) {
+                        alert('File size exceeds 50MB limit. Please select a smaller file.');
+                        e.target.value = '';
+                        return;
+                    }
+                    
+                    const allowedExtensions = ['.bin', '.hex', '.fw', '.img', '.zip'];
+                    const fileName = file.name.toLowerCase();
+                    const isValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+                    
+                    if (!isValidExtension) {
+                        alert('Invalid file format. Please select a firmware file (.bin, .hex, .fw, .img, .zip).');
+                        e.target.value = '';
+                        return;
+                    }
+                }
+            });
+        });
+        
+        function initSignalR() {
+            if (typeof signalR === 'undefined') {
+                console.error('SignalR is not available');
+                return;
+            }
+            
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl("/deviceHub")
+                .configureLogging(signalR.LogLevel.Information)
+                .build();
+
+            connection.start().then(function () {
+                console.log("✅ SignalR Connected for device updates");
+            }).catch(function (err) {
+                console.error("❌ SignalR connection failed:", err);
+            });
+
+            // Listen for update events
+            connection.on("UpdateRequested", function (data) {
+                console.log("Update requested:", data);
+                showUpdateNotification(`Update started for device ${data.DeviceId}`, 'info');
+                refreshUpdates();
+            });
+
+            connection.on("UpdateProgress", function (data) {
+                console.log("Update progress:", data);
+                updateProgressDisplay(data);
+            });
+
+            connection.on("UpdateCompleted", function (data) {
+                console.log("Update completed:", data);
+                showUpdateNotification(`Update completed for device ${data.DeviceId}`, 'success');
+                refreshUpdates();
+                hideProgressModal();
+            });
+
+            connection.on("UpdateFailed", function (data) {
+                console.log("Update failed:", data);
+                showUpdateNotification(`Update failed for device ${data.DeviceId}: ${data.ErrorMessage}`, 'danger');
+                refreshUpdates();
+                hideProgressModal();
+            });
+
+            connection.on("UpdateCancelled", function (data) {
+                console.log("Update cancelled:", data);
+                showUpdateNotification(`Update cancelled for device ${data.DeviceId}`, 'warning');
+                refreshUpdates();
+                hideProgressModal();
+            });
+
+            connection.onclose(function(error) {
+                console.log("SignalR connection closed", error);
+                setTimeout(initSignalR, 3000);
+            });
+        }
+        
+        function refreshUpdates() {
+            // This would typically fetch current updates from the server
+            // For now, we'll just update the display
+            const container = document.getElementById('currentUpdates');
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-sync fa-spin me-2"></i>
+                        Checking for active updates...
+                    </div>
+                `;
+                
+                // Simulate loading
+                setTimeout(() => {
+                    container.innerHTML = `
+                        <div class="text-center text-muted">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No updates currently in progress
+                        </div>
+                    `;
+                }, 1000);
+            }
+        }
+        
+        function updateProgressDisplay(data) {
+            if (currentUpdateId === null || currentUpdateId === data.UpdateId) {
+                currentUpdateId = data.UpdateId;
+                showProgressModal(data);
+            }
+        }
+        
+        function showProgressModal(data) {
+            const modal = document.getElementById('updateProgressModal');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressDeviceId = document.getElementById('progressDeviceId');
+            const progressStatus = document.getElementById('progressStatus');
+            const progressMessage = document.getElementById('progressMessage');
+            
+            if (progressDeviceId) progressDeviceId.textContent = data.DeviceId;
+            if (progressStatus) {
+                progressStatus.textContent = data.Status;
+                progressStatus.className = `badge bg-${getStatusColor(data.Status)}`;
+            }
+            
+            if (progressBar && progressText) {
+                const progress = data.Progress || 0;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+                
+                if (progress === 100) {
+                    progressBar.classList.remove('progress-bar-animated');
+                    progressBar.classList.add('bg-success');
+                }
+            }
+            
+            if (progressMessage) {
+                const messages = {
+                    'Pending': 'Preparing update...',
+                    'InProgress': 'Update in progress...',
+                    'Completed': 'Update completed successfully!',
+                    'Failed': 'Update failed!',
+                    'Cancelled': 'Update was cancelled.'
+                };
+                progressMessage.textContent = messages[data.Status] || 'Processing...';
+            }
+            
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+        }
+        
+        function hideProgressModal() {
+            const modal = document.getElementById('updateProgressModal');
+            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+            if (bootstrapModal) {
+                bootstrapModal.hide();
+            }
+            currentUpdateId = null;
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                'Pending': 'secondary',
+                'InProgress': 'info',
+                'Completed': 'success',
+                'Failed': 'danger',
+                'Cancelled': 'warning'
+            };
+            return colors[status] || 'secondary';
+        }
+        
+        function showUpdateNotification(message, type) {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                const alerts = document.querySelectorAll('.alert[style*="position: fixed"]');
+                alerts.forEach(alert => {
+                    const bsAlert = bootstrap.Alert.getInstance(alert);
+                    if (bsAlert) bsAlert.close();
+                });
+            }, 5000);
+        }
+        
+        // Device selection handler
+        document.querySelector('select[name="DeviceId"]')?.addEventListener('change', function() {
+            const selectedDevice = this.value;
+            if (selectedDevice) {
+                // You could fetch device-specific information here
+                console.log(`Selected device: ${selectedDevice}`);
+            }
+        });
+    </script>
+}

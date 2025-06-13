@@ -66,7 +66,8 @@ builder.Services.AddSignalR(options =>
 // Add custom services
 builder.Services.AddSingleton<IDataService, DataService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IUserActivityService, UserActivityService>(); // 새로 추가
+builder.Services.AddScoped<IUserActivityService, UserActivityService>();
+builder.Services.AddScoped<IDeviceUpdateService, DeviceUpdateService>(); // 새로 추가
 
 // Add background services
 builder.Services.AddHostedService<DataUpdateService>();
