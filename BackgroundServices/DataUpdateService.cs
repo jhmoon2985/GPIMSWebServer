@@ -55,15 +55,15 @@ namespace GPIMSWebServer.BackgroundServices
                                 await hubContext.Clients.Group($"Device_{deviceId}")
                                     .SendAsync("ReceiveDeviceData", latestData, stoppingToken);
                                 
-                                _logger.LogDebug($"Broadcasted data for device {deviceId} with {latestData.Channels.Count} channels");
+                                //_logger.LogDebug($"Broadcasted data for device {deviceId} with {latestData.Channels.Count} channels");
                             }
                         }
                         
-                        _logger.LogDebug($"Updated {activeDevices.Count} active devices");
+                        //_logger.LogDebug($"Updated {activeDevices.Count} active devices");
                     }
                     else
                     {
-                        _logger.LogDebug("No active devices found");
+                        //_logger.LogDebug("No active devices found");
                     }
                     
                     // 주기적으로 전체 디바이스 상태 브로드캐스트 (10초마다)
@@ -106,7 +106,7 @@ namespace GPIMSWebServer.BackgroundServices
                 var onlineCount = deviceStatusList.Count(d => ((dynamic)d).IsOnline);
                 var offlineCount = deviceStatusList.Count - onlineCount;
                 
-                _logger.LogDebug($"Broadcasted status summary: {onlineCount} online, {offlineCount} offline devices");
+                //_logger.LogDebug($"Broadcasted status summary: {onlineCount} online, {offlineCount} offline devices");
             }
             catch (Exception ex)
             {
@@ -141,7 +141,7 @@ namespace GPIMSWebServer.BackgroundServices
                     _logger.LogInformation($"Memory usage: {memoryBefore / 1024 / 1024} MB, triggering GC");
                     GC.Collect();
                     var memoryAfter = GC.GetTotalMemory(true);
-                    _logger.LogDebug($"Memory after GC: {memoryAfter / 1024 / 1024} MB");
+                    //_logger.LogDebug($"Memory after GC: {memoryAfter / 1024 / 1024} MB");
                 }
                 
                 await Task.CompletedTask;

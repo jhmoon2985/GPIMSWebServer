@@ -54,7 +54,7 @@ namespace GPIMSWebServer.Hubs
                 if (latestData != null)
                 {
                     await Clients.Caller.SendAsync("ReceiveDeviceData", latestData);
-                    _logger.LogDebug($"Latest data sent to caller for device {deviceId}");
+                    //_logger.LogDebug($"Latest data sent to caller for device {deviceId}");
                 }
                 else
                 {
@@ -81,7 +81,7 @@ namespace GPIMSWebServer.Hubs
                 }).ToList();
 
                 await Clients.Caller.SendAsync("ReceiveDeviceList", deviceListWithStatus);
-                _logger.LogDebug($"Device list with status sent to caller: {allDevices.Count} devices");
+                //_logger.LogDebug($"Device list with status sent to caller: {allDevices.Count} devices");
             }
             catch (Exception ex)
             {
@@ -125,7 +125,7 @@ namespace GPIMSWebServer.Hubs
                 };
 
                 await Clients.Caller.SendAsync("ReceiveDeviceStatus", deviceStatus);
-                _logger.LogDebug($"Device status sent for {deviceId}: {(isOnline ? "Online" : "Offline")}");
+                //_logger.LogDebug($"Device status sent for {deviceId}: {(isOnline ? "Online" : "Offline")}");
             }
             catch (Exception ex)
             {
@@ -184,7 +184,7 @@ namespace GPIMSWebServer.Hubs
             {
                 var deviceStatusList = _dataService.GetDeviceStatusSummary();
                 await Clients.All.SendAsync("ReceiveAllDevicesStatus", deviceStatusList);
-                _logger.LogDebug($"Broadcasted status for {deviceStatusList.Count} devices");
+                //_logger.LogDebug($"Broadcasted status for {deviceStatusList.Count} devices");
             }
             catch (Exception ex)
             {

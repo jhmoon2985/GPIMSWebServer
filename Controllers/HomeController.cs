@@ -21,7 +21,7 @@ namespace GPIMSWebServer.Controllers
             _logger = logger;
         }
 
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
         {
             var activeDevices = _dataService.GetActiveDevices();
             ViewBag.UserRole = User.FindFirst("Role")?.Value ?? "Unknown";

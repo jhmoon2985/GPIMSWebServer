@@ -72,7 +72,7 @@ namespace GPIMSWebServer.Services
                     await _hubContext.Clients.Group($"Device_{deviceId}")
                         .SendAsync("ReceiveDeviceData", deviceData);
                     
-                    _logger.LogDebug($"Data broadcasted immediately for device {deviceId} with {deviceData.Channels.Count} channels");
+                    //_logger.LogDebug($"Data broadcasted immediately for device {deviceId} with {deviceData.Channels.Count} channels");
                 }
                 catch (Exception broadcastEx)
                 {
@@ -246,7 +246,7 @@ namespace GPIMSWebServer.Services
                     await _hubContext.Clients.Group($"Device_{deviceId}")
                         .SendAsync("ReceiveDeviceData", latestData);
                     
-                    _logger.LogDebug($"Manual broadcast completed for device {deviceId}");
+                    //_logger.LogDebug($"Manual broadcast completed for device {deviceId}");
                 }
                 else
                 {
