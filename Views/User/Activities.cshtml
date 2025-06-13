@@ -1,0 +1,289 @@
+@model List<GPIMSWebServer.Models.UserActivityViewModel>
+@{
+    ViewData["Title"] = "User Activities";
+    var count = ViewBag.Count as int? ?? 100;
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="fs-4"><i class="fas fa-history"></i> User Activities</h1>
+                <p class="text-muted mb-0">Track all user activities in the system</p>
+            </div>
+            <div>
+                <a asp-action="Index" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-users"></i> Back to Users
+                </a>
+                <div class="dropdown d-inline">
+                    <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-filter"></i> Show @count entries
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="?count=50">Show 50 entries</a></li>
+                        <li><a class="dropdown-item" href="?count=100">Show 100 entries</a></li>
+                        <li><a class="dropdown-item" href="?count=200">Show 200 entries</a></li>
+                        <li><a class="dropdown-item" href="?count=500">Show 500 entries</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>@TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- Activity Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-primary">@Model.Count</h5>
+                        <p class="card-text">Total Activities</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">@Model.Count(a => a.ActivityType == "Login")</h5>
+                        <p class="card-text">Logins</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-info">@Model.Count(a => a.ActivityType.StartsWith("View"))</h5>
+                        <p class="card-text">Page Views</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning">@Model.DistinctBy(a => a.Username).Count()</h5>
+                        <p class="card-text">Active Users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Recent Activities
+                        <span class="badge bg-secondary ms-2">@Model.Count activities</span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <!-- Filter buttons -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterAll" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="filterAll">All</label>
+                            
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterLogin" autocomplete="off">
+                            <label class="btn btn-outline-success" for="filterLogin">Login/Logout</label>
+                            
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterView" autocomplete="off">
+                            <label class="btn btn-outline-info" for="filterView">Views</label>
+                            
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterAdmin" autocomplete="off">
+                            <label class="btn btn-outline-warning" for="filterAdmin">Admin</label>
+                        </div>
+                        
+                        <!-- Search box -->
+                        <div class="input-group input-group-sm" style="width: 200px;">
+                            <input type="text" class="form-control" placeholder="Search activities..." id="searchActivities">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="activitiesTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th><i class="fas fa-user"></i> User</th>
+                                    <th><i class="fas fa-play"></i> Activity</th>
+                                    <th><i class="fas fa-info-circle"></i> Description</th>
+                                    <th><i class="fas fa-globe"></i> IP Address</th>
+                                    <th><i class="fas fa-clock"></i> Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var activity in Model)
+                                {
+                                    <tr class="activity-row" 
+                                        data-activity="@activity.ActivityType.ToLower()"
+                                        data-search="@($"{activity.Username} {activity.ActivityType} {activity.Description}".ToLower())">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div>
+                                                    <strong>@activity.Username</strong>
+                                                    @if (activity.Username == User.Identity?.Name)
+                                                    {
+                                                        <small class="badge bg-info ms-1">You</small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-@GetActivityColor(activity.ActivityType) fs-6">
+                                                <i class="fas fa-@GetActivityIcon(activity.ActivityType)"></i>
+                                                @activity.ActivityType
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">@activity.Description</span>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted font-monospace">@activity.IpAddress</small>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                @activity.CreatedAt.ToString("MMM dd, HH:mm")
+                                                <div class="text-xs">@activity.TimeAgo</div>
+                                            </small>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No activities found</h5>
+                        <p class="text-muted">User activities will appear here as they occur.</p>
+                    </div>
+                }
+            </div>
+            @if (Model.Any())
+            {
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <span id="visibleCount">@Model.Count</span> of @Model.Count activities shown
+                        </small>
+                        <small class="text-muted">
+                            Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                        </small>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string GetActivityColor(string activityType)
+    {
+        return activityType switch
+        {
+            "Login" => "success",
+            "Logout" => "secondary",
+            "ViewDevice" => "info",
+            "ViewChannels" => "info", 
+            "ViewMonitoring" => "info",
+            "CreateUser" => "warning",
+            "EditUser" => "warning",
+            "DeleteUser" => "danger",
+            "EditProfile" => "primary",
+            _ => "secondary"
+        };
+    }
+
+    private string GetActivityIcon(string activityType)
+    {
+        return activityType switch
+        {
+            "Login" => "sign-in-alt",
+            "Logout" => "sign-out-alt",
+            "ViewDevice" => "microchip",
+            "ViewChannels" => "battery-three-quarters",
+            "ViewMonitoring" => "chart-line",
+            "CreateUser" => "user-plus",
+            "EditUser" => "user-edit",
+            "DeleteUser" => "user-slash",
+            "EditProfile" => "user-cog",
+            _ => "circle"
+        };
+    }
+}
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchActivities');
+        const filterButtons = document.querySelectorAll('input[name="activityFilter"]');
+        const activityRows = document.querySelectorAll('.activity-row');
+        const visibleCountElement = document.getElementById('visibleCount');
+
+        function updateVisibleCount() {
+            const visibleRows = document.querySelectorAll('.activity-row:not([style*="display: none"])');
+            if (visibleCountElement) {
+                visibleCountElement.textContent = visibleRows.length;
+            }
+        }
+
+        function filterActivities() {
+            const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            const activeFilter = document.querySelector('input[name="activityFilter"]:checked')?.id || 'filterAll';
+
+            activityRows.forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                const activity = row.getAttribute('data-activity') || '';
+                
+                let showRow = true;
+
+                // Apply search filter
+                if (searchTerm && !searchData.includes(searchTerm)) {
+                    showRow = false;
+                }
+
+                // Apply activity filter
+                if (activeFilter === 'filterLogin' && !['login', 'logout'].includes(activity)) {
+                    showRow = false;
+                } else if (activeFilter === 'filterView' && !activity.startsWith('view')) {
+                    showRow = false;
+                } else if (activeFilter === 'filterAdmin' && !['createuser', 'edituser', 'deleteuser'].includes(activity)) {
+                    showRow = false;
+                }
+
+                row.style.display = showRow ? '' : 'none';
+            });
+
+            updateVisibleCount();
+        }
+
+        // Event listeners
+        if (searchInput) {
+            searchInput.addEventListener('input', filterActivities);
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('change', filterActivities);
+        });
+
+        // Initial count
+        updateVisibleCount();
+
+        // Auto refresh every 30 seconds
+        setInterval(function() {
+            window.location.reload();
+        }, 30000);
+    });
+</script>
+}

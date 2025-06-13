@@ -66,6 +66,7 @@ builder.Services.AddSignalR(options =>
 // Add custom services
 builder.Services.AddSingleton<IDataService, DataService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserActivityService, UserActivityService>(); // 새로 추가
 
 // Add background services
 builder.Services.AddHostedService<DataUpdateService>();
@@ -95,6 +96,7 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+    var activityService = scope.ServiceProvider.GetRequiredService<IUserActivityService>();
     
     try
     {
@@ -145,8 +147,37 @@ using (var scope = app.Services.CreateScope())
             context.Users.Add(newAdmin);
             await context.SaveChangesAsync();
             
+            // 관리자 계정 생성 로그
+            await activityService.LogActivityAsync(
+                newAdmin.Id, 
+                newAdmin.Username, 
+                ActivityType.CreateUser, 
+                "System administrator account created", 
+                "127.0.0.1", 
+                "System"
+            );
+            
             app.Logger.LogInformation("Default admin user created successfully");
         }
+
+        // 주기적으로 오래된 활동 기록 정리 (백그라운드에서 실행)
+        _ = Task.Run(async () =>
+        {
+            while (true)
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromHours(24)); // 24시간마다 실행
+                    using var cleanupScope = app.Services.CreateScope();
+                    var cleanupActivityService = cleanupScope.ServiceProvider.GetRequiredService<IUserActivityService>();
+                    await cleanupActivityService.CleanupOldActivitiesAsync(30); // 30일 이상 된 기록 삭제
+                }
+                catch (Exception ex)
+                {
+                    app.Logger.LogError(ex, "Error during activity cleanup");
+                }
+            }
+        });
     }
     catch (Exception ex)
     {

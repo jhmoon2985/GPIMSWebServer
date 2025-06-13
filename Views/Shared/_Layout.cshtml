@@ -149,10 +149,27 @@
                     </a>
                     @if (User.IsInRole("Admin"))
                     {
-                        <a class="nav-link" href="/User">
-                            <i class="fas fa-users"></i> Users
-                        </a>
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-users"></i> Users
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/User">
+                                    <i class="fas fa-list me-2"></i>Manage Users
+                                </a></li>
+                                <li><a class="dropdown-item" href="/User/Activities">
+                                    <i class="fas fa-history me-2"></i>All Activities
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/User/Create">
+                                    <i class="fas fa-user-plus me-2"></i>Add New User
+                                </a></li>
+                            </ul>
+                        </div>
                     }
+                    <a class="nav-link" href="/User/MyActivities">
+                        <i class="fas fa-user-clock"></i> My Activities
+                    </a>
                 </div>
                 
                 @if (User.Identity?.IsAuthenticated == true)
@@ -197,6 +214,12 @@
                                         <i class="fas fa-user-edit me-2"></i>My Profile
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="/User/MyActivities">
+                                        <i class="fas fa-user-clock me-2"></i>My Activities
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
                                         <button type="submit" class="dropdown-item text-danger">

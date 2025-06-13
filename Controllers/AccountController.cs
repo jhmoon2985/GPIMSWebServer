@@ -11,11 +11,13 @@ namespace GPIMSWebServer.Controllers
     public class AccountController : Controller
     {
         private readonly IUserService _userService;
+        private readonly IUserActivityService _activityService;
         private readonly ILogger<AccountController> _logger;
 
-        public AccountController(IUserService userService, ILogger<AccountController> logger)
+        public AccountController(IUserService userService, IUserActivityService activityService, ILogger<AccountController> logger)
         {
             _userService = userService;
+            _activityService = activityService;
             _logger = logger;
         }
 
@@ -61,7 +63,6 @@ namespace GPIMSWebServer.Controllers
                     new Claim(ClaimTypes.GivenName, user.Name),
                     new Claim("Department", user.Department),
                     new Claim("Role", user.Role.ToString()),
-                    // 🔧 이 부분이 핵심! User.IsInRole()이 작동하도록 ClaimTypes.Role도 추가
                     new Claim(ClaimTypes.Role, user.Role.ToString())
                 };
 
@@ -76,6 +77,18 @@ namespace GPIMSWebServer.Controllers
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     new ClaimsPrincipal(claimsIdentity),
                     authProperties);
+
+                // 로그인 활동 기록
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+                await _activityService.LogActivityAsync(
+                    user.Id, 
+                    user.Username, 
+                    ActivityType.Login, 
+                    $"User logged in successfully",
+                    ipAddress,
+                    userAgent
+                );
 
                 _logger.LogInformation($"User {model.Username} logged in successfully with role {user.Role}");
 
@@ -100,6 +113,21 @@ namespace GPIMSWebServer.Controllers
         public async Task<IActionResult> Logout()
         {
             var username = User.Identity?.Name;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(username) && int.TryParse(userId, out int userIdInt))
+            {
+                // 로그아웃 활동 기록
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                await _activityService.LogActivityAsync(
+                    userIdInt, 
+                    username, 
+                    ActivityType.Logout, 
+                    "User logged out",
+                    ipAddress
+                );
+            }
+
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             _logger.LogInformation($"User {username} logged out");
             return RedirectToAction("Login");

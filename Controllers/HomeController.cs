@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using GPIMSWebServer.Models;
 using GPIMSWebServer.Services;
 using System.Diagnostics;
+using System.Security.Claims;
 
 namespace GPIMSWebServer.Controllers
 {
@@ -10,15 +11,17 @@ namespace GPIMSWebServer.Controllers
     public class HomeController : Controller
     {
         private readonly IDataService _dataService;
+        private readonly IUserActivityService _activityService;
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(IDataService dataService, ILogger<HomeController> logger)
+        public HomeController(IDataService dataService, IUserActivityService activityService, ILogger<HomeController> logger)
         {
             _dataService = dataService;
+            _activityService = activityService;
             _logger = logger;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             var activeDevices = _dataService.GetActiveDevices();
             ViewBag.UserRole = User.FindFirst("Role")?.Value ?? "Unknown";
@@ -29,10 +32,13 @@ namespace GPIMSWebServer.Controllers
             return View(activeDevices);
         }
 
-        public IActionResult Device(string id)
+        public async Task<IActionResult> Device(string id)
         {
             if (string.IsNullOrEmpty(id))
                 return RedirectToAction("Index");
+
+            // 디바이스 조회 활동 기록
+            await LogUserActivity(ActivityType.ViewDevice, $"Viewed device: {id}");
 
             var deviceData = _dataService.GetLatestDeviceData(id);
             ViewBag.DeviceId = id;
@@ -41,10 +47,13 @@ namespace GPIMSWebServer.Controllers
             return View(deviceData);
         }
 
-        public IActionResult Channels(string deviceId)
+        public async Task<IActionResult> Channels(string deviceId)
         {
             if (string.IsNullOrEmpty(deviceId))
                 return RedirectToAction("Index");
+
+            // 채널 조회 활동 기록
+            await LogUserActivity(ActivityType.ViewChannels, $"Viewed channels for device: {deviceId}");
 
             var deviceData = _dataService.GetLatestDeviceData(deviceId);
             ViewBag.DeviceId = deviceId;
@@ -53,10 +62,13 @@ namespace GPIMSWebServer.Controllers
             return View(deviceData?.Channels ?? new List<ChannelData>());
         }
 
-        public IActionResult Monitoring(string deviceId)
+        public async Task<IActionResult> Monitoring(string deviceId)
         {
             if (string.IsNullOrEmpty(deviceId))
                 return RedirectToAction("Index");
+
+            // 모니터링 조회 활동 기록
+            await LogUserActivity(ActivityType.ViewMonitoring, $"Accessed monitoring for device: {deviceId}");
 
             ViewBag.DeviceId = deviceId;
             ViewBag.UserRole = User.FindFirst("Role")?.Value ?? "Unknown";
@@ -75,6 +87,25 @@ namespace GPIMSWebServer.Controllers
         public IActionResult Privacy()
         {
             return View();
+        }
+
+        private async Task LogUserActivity(ActivityType activityType, string description)
+        {
+            try
+            {
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var username = User.Identity?.Name;
+
+                if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(username) && int.TryParse(userId, out int userIdInt))
+                {
+                    var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                    await _activityService.LogActivityAsync(userIdInt, username, activityType, description, ipAddress);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to log user activity");
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ namespace GPIMSWebServer.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<UserActivity> UserActivities { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -22,8 +23,18 @@ namespace GPIMSWebServer.Data
                     .HasConversion<string>();
             });
 
-            // 🔧 시드 데이터 제거 - Program.cs에서 처리하므로 불필요
-            // HasData는 마이그레이션과 충돌할 수 있으므로 제거
+            modelBuilder.Entity<UserActivity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+                entity.HasIndex(e => e.CreatedAt);
+                entity.HasIndex(e => e.ActivityType);
+                
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 }
